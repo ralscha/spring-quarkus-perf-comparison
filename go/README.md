@@ -57,7 +57,7 @@ The Go module includes a `Taskfile.yml` with a few common workflows:
 - `task build` builds `server` or `server.exe`
 - `task run` starts the service
 - `task pgo-run-profile` starts the service with CPU profiling enabled and writes `server.pprof` when the process exits cleanly
-- `task pgo-build` builds `server-pgo` or `server-pgo.exe` with `go build -pgo=server.pprof`
+- `task pgo-build` builds `server_pgo` or `server_pgo.exe` with `go build -pgo=server.pprof`
 - `task pgo-run` builds and runs the optimized binary
 - `task test` runs the test suite
 - `task format` formats the source tree with `go fix` and `go fmt`
@@ -70,7 +70,9 @@ The PGO tasks are based on Go's CPU-profile-driven optimization flow:
 1. Run `task pgo-run-profile`.
 2. Exercise the service with representative traffic.
 3. Stop the process so it flushes `server.pprof`.
-4. Run `task pgo-build` to compile `server-pgo` or `server-pgo.exe` with that profile.
+4. Run `task pgo-build` to compile `server_pgo` or `server_pgo.exe` with that profile.
 5. Run `task pgo-run` to launch the optimized binary.
+
+The benchmark host automation performs that preparation during bootstrap: it starts PostgreSQL, runs `go run . -cpuprofile server.pprof`, drives load with `k6`, stops the profiled process to flush the profile, builds `server_pgo`, and then the benchmark runner measures both `server` and `server_pgo`.
 
 If you later want Go to pick up a profile automatically during plain `go build`, rename the chosen profile to `default.pgo` in the module root.

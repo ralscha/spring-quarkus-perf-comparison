@@ -19,5 +19,5 @@ buildNumber.properties
 /.profileconfig.json
 *.exe
 server
-server-pgo
+server_pgo
 server.pprof

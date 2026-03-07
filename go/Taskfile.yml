@@ -2,7 +2,7 @@ version: '3'
 
 vars:
   serverBinary: server{{exeExt}}
-  optimizedBinary: server-pgo{{exeExt}}
+  optimizedBinary: server_pgo{{exeExt}}
   pgoProfile: server.pprof
 
 tasks:

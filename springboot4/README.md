@@ -3,7 +3,7 @@ To compile for JVM mode:
 `./mvnw clean package`
 
 To run in JVM Mode:
-`java -jar target/app.jar`
+`java -jar target/springboot4.jar`
 
 ## AOT on JVM mode
 To compile for AOT mode:

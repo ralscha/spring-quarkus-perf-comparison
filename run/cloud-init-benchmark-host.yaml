@@ -10,6 +10,7 @@ write_files:
       #!/usr/bin/env bash
       set -euo pipefail
 
+      export HOME=/root
       export DEBIAN_FRONTEND=noninteractive
       export JAVA_HOME=/opt/java/openjdk-25
       export GOPATH=/opt/go
@@ -20,10 +21,101 @@ write_files:
       BENCH_ROOT=/opt/benchmarks
       COMPOSE_DIR="${BENCH_ROOT}/postgres"
       REPO_DIR="${BENCH_ROOT}/spring-quarkus-perf-comparison"
+      BOOTSTRAP_LOG_DIR="${BENCH_ROOT}/bootstrap-logs"
       LOG_FILE=/var/log/bootstrap-benchmark-host.log
       RUNNER_SCRIPT=/usr/local/bin/run-benchmarks.sh
+      GO_BENCH_ENV='GOMAXPROCS=4 GOMEMLIMIT=5GiB'
 
       exec > >(tee -a "${LOG_FILE}") 2>&1
+
+      wait_for_postgres() {
+        until docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T postgres pg_isready -U fruits -d fruits >/dev/null 2>&1; do
+          sleep 2
+        done
+      }
+
+      wait_for_server() {
+        local pid_file="$1"
+        for _ in $(seq 1 90); do
+          if curl -fsS http://127.0.0.1:8080/fruits >/dev/null 2>&1; then
+            return 0
+          fi
+
+          if [ -f "${pid_file}" ]; then
+            local server_pid
+            server_pid=$(cat "${pid_file}")
+            if ! kill -0 "${server_pid}" >/dev/null 2>&1; then
+              echo "Go profiling process exited before becoming ready" >&2
+              return 1
+            fi
+          fi
+
+          sleep 2
+        done
+
+        echo "Go profiling process did not become ready in time" >&2
+        return 1
+      }
+
+      stop_server() {
+        local pid_file="$1"
+        if [ ! -f "${pid_file}" ]; then
+          return 0
+        fi
+
+        local server_pid
+        server_pid=$(cat "${pid_file}")
+        if kill -0 "${server_pid}" >/dev/null 2>&1; then
+          kill "${server_pid}" >/dev/null 2>&1 || true
+          wait "${server_pid}" >/dev/null 2>&1 || true
+        fi
+        rm -f "${pid_file}"
+      }
+
+      prepare_go_pgo_binary() {
+        local workdir="${REPO_DIR}/go"
+        local pid_file="${BOOTSTRAP_LOG_DIR}/go-pgo-profile.pid"
+        local server_log="${BOOTSTRAP_LOG_DIR}/go-pgo-profile.log"
+        local k6_log="${BOOTSTRAP_LOG_DIR}/go-pgo-profile-k6.txt"
+        local profile_path="${workdir}/server.pprof"
+
+        cleanup_go_pgo() {
+          stop_server "${pid_file}"
+          docker compose -f "${COMPOSE_DIR}/docker-compose.yml" down >/dev/null 2>&1 || true
+        }
+
+        trap cleanup_go_pgo RETURN
+
+        echo "[$(date --iso-8601=seconds)] Generating Go PGO profile during bootstrap"
+        install -d "${BOOTSTRAP_LOG_DIR}"
+        rm -f "${profile_path}" "${workdir}/server_pgo" "${pid_file}" "${server_log}" "${k6_log}"
+        docker compose -f "${COMPOSE_DIR}/docker-compose.yml" up -d --remove-orphans
+        wait_for_postgres
+
+        pushd "${workdir}" >/dev/null
+        bash -lc "exec env ${GO_BENCH_ENV} go run . -cpuprofile server.pprof" >"${server_log}" 2>&1 &
+        local server_pid=$!
+        popd >/dev/null
+
+        printf '%s\n' "${server_pid}" > "${pid_file}"
+
+        wait_for_server "${pid_file}"
+        k6 run "${BENCH_ROOT}/stress-k6.js" | tee "${k6_log}"
+        stop_server "${pid_file}"
+
+        if [ ! -s "${profile_path}" ]; then
+          echo "Go CPU profile was not written to ${profile_path}" >&2
+          return 1
+        fi
+
+        echo "[$(date --iso-8601=seconds)] Building Go PGO binary during bootstrap"
+        pushd "${workdir}" >/dev/null
+        env ${GO_BENCH_ENV} go build -pgo=server.pprof -o server_pgo .
+        popd >/dev/null
+
+        trap - RETURN
+        cleanup_go_pgo
+      }
 
       echo "[$(date --iso-8601=seconds)] Updating Debian packages"
       apt-get update
@@ -105,10 +197,13 @@ write_files:
       fi
 
       echo "[$(date --iso-8601=seconds)] Preparing PostgreSQL Docker Compose assets"
-      install -d "${BENCH_ROOT}" "${COMPOSE_DIR}"
+      install -d "${BENCH_ROOT}" "${COMPOSE_DIR}" "${BOOTSTRAP_LOG_DIR}"
       cp "${REPO_DIR}/run/docker-compose.yml" "${COMPOSE_DIR}/docker-compose.yml"
       cp "${REPO_DIR}/run/db.sql" "${COMPOSE_DIR}/db.sql"
       cp "${REPO_DIR}/run/stress-k6.js" "${BENCH_ROOT}/stress-k6.js"
+
+      echo "[$(date --iso-8601=seconds)] Pulling Docker Compose images"
+      docker compose -f "${COMPOSE_DIR}/docker-compose.yml" pull
 
       find "${REPO_DIR}" -maxdepth 2 -name mvnw -type f -exec chmod +x {} \;
 
@@ -116,6 +211,8 @@ write_files:
       pushd "${REPO_DIR}/go"
       go build -o server .
       popd
+
+      prepare_go_pgo_binary
 
       for module in micronaut4 quarkus3 quarkus3-spring-compatibility quarkus3-virtual springboot4; do
         if [ "${module}" = "springboot4" ]; then
@@ -130,16 +227,16 @@ write_files:
       echo "[$(date --iso-8601=seconds)] Building springboot4 JVM artifact"
       pushd "${REPO_DIR}/springboot4"
       ./mvnw -B -DskipTests clean package
-      cp target/app.jar target/app-jvm.jar
+      cp target/springboot4.jar target/app-jvm.jar
 
       echo "[$(date --iso-8601=seconds)] Building springboot4 AOT JVM artifact"
       ./mvnw -B -DskipTests compile spring-boot:process-aot package
       popd
 
-      echo "[$(date --iso-8601=seconds)] Running benchmarks"
-      "${RUNNER_SCRIPT}"
-
       echo "[$(date --iso-8601=seconds)] Benchmark host bootstrap complete"
+      echo "[$(date --iso-8601=seconds)] Rebooting before benchmark execution. Run ${RUNNER_SCRIPT} after the host comes back."
+      sync
+      systemctl reboot
 
   - path: /usr/local/bin/run-benchmarks.sh
     owner: root:root
@@ -148,6 +245,7 @@ write_files:
       #!/usr/bin/env bash
       set -euo pipefail
 
+      export HOME=/root
       export JAVA_HOME=/opt/java/openjdk-25
       export PATH="${JAVA_HOME}/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
@@ -250,6 +348,7 @@ write_files:
 
       frameworks=(
         "go|${REPO_DIR}/go|env ${GO_BENCH_ENV} ./server"
+        "go-pgo|${REPO_DIR}/go|env ${GO_BENCH_ENV} ./server_pgo"
         "micronaut4|${REPO_DIR}/micronaut4|java ${JVM_BENCH_OPTS} -jar target/micronaut4.jar"
         "micronaut4-virtual|${REPO_DIR}/micronaut4|java ${JVM_BENCH_OPTS} -Dfruit.virtual-threads.enabled=true -jar target/micronaut4.jar"
         "quarkus3|${REPO_DIR}/quarkus3|java ${JVM_BENCH_OPTS} -jar target/quarkus-app/quarkus-run.jar"
