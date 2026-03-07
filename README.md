@@ -40,6 +40,8 @@ To that end, we use different branches within this repository for separating the
 
 ## What's in the repo
 This project contains the following modules:
+- [micronaut4](micronaut4)
+    - A Micronaut 4.x version of the application
 - [springboot3](springboot3)
     - A Spring Boot 3.x version of the application
 - [springboot4](springboot4)
@@ -130,6 +132,7 @@ The [`stress.sh`](scripts/stress.sh) script starts the infrastructure, and uses 
 how many requests the applications can handle over a short period of time. 
 
 ```shell
+scripts/stress.sh micronaut4/target/micronaut4.jar
 scripts/stress.sh quarkus3/target/quarkus-app/quarkus-run.jar
 scripts/stress.sh quarkus3-spring-compatibility/target/quarkus-app/quarkus-run.jar
 scripts/stress.sh springboot3/target/springboot3.jar
@@ -150,6 +153,7 @@ The [`1strequest.sh`](scripts/1strequest.sh) starts the infrastructure and runs 
 
 For example, 
 ```shell
+scripts/1strequest.sh "java -XX:ActiveProcessorCount=8 -Xms512m -Xmx512m -jar micronaut4/target/micronaut4.jar" 5
 scripts/1strequest.sh "java -XX:ActiveProcessorCount=8 -Xms512m -Xmx512m -jar quarkus3/target/quarkus-app/quarkus-run.jar" 5
 scripts/1strequest.sh "java -XX:ActiveProcessorCount=8 -Xms512m -Xmx512m -jar quarkus3-spring-compatibility/target/quarkus-app/quarkus-run.jar" 5
 scripts/1strequest.sh "java -XX:ActiveProcessorCount=8 -Xms512m -Xmx512m -jar springboot3/target/springboot3.jar" 5

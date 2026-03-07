@@ -1,0 +1,14 @@
+datasources:
+  default:
+    url: jdbc:h2:mem:prodlike;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    driverClassName: org.h2.Driver
+    username: sa
+    password: ''
+
+jpa:
+  default:
+    properties:
+      hibernate:
+        hbm2ddl:
+          auto: create-drop
+          import_files: empty.sql

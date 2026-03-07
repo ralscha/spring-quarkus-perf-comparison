@@ -17,3 +17,7 @@ buildNumber.properties
 .classpath
 /.idea/
 /.profileconfig.json
+*.exe
+server
+server-pgo
+server.pprof

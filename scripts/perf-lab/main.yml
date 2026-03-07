@@ -8,6 +8,7 @@ states:
   config.jvm.graalvm.version: 25.0.2-graalce
 
   config.quarkus.version: #3.28.3
+  config.micronaut.version: #4.10.9
   config.springboot3.version: #3.5.6
   config.springboot4.version: #4.0.0
 
@@ -43,7 +44,7 @@ states:
   PROFILER_JVM_ARGS:
   BASE_JAVA_CMD: ${{APP_CMD_PREFIX}} java ${{config.jvm.memory}} ${{config.jvm.args}} ${{PROFILER_JVM_ARGS}}
   TESTS : [test-build, measure-build-times, measure-time-to-first-request, measure-rss, run-load-test]
-  RUNTIMES: [quarkus3-jvm, quarkus3-virtual, quarkus3-native, spring3-jvm, spring3-virtual, spring3-jvm-aot, spring3-native, spring4-jvm, spring4-virtual, spring4-jvm-aot, spring4-native]
+  RUNTIMES: [quarkus3-jvm, quarkus3-virtual, quarkus3-native, micronaut4-jvm, micronaut4-virtual, spring3-jvm, spring3-virtual, spring3-jvm-aot, spring3-native, spring4-jvm, spring4-virtual, spring4-jvm-aot, spring4-native]
   TARGET_URL: http://localhost:8080/fruits
   QUARKUS-PLATFORM-ARTIFACT-ID: quarkus-bom
   PROJ_REPO_NAME: spring-quarkus-perf-comparison
@@ -74,6 +75,22 @@ states:
       buildCmd: "./mvnw ${{config.quarkus.build_config_args}} clean package -DskipTests -Pnative ${{config.quarkus.native_build_options}}"
       runCmd: "${{APP_CMD_PREFIX}} ${{QUARKUS3_DIR}}/target/quarkus3-runner ${{config.jvm.memory}}"
       logFileStartedRegex: ".*quarkus3.+started in.*"
+    - name: micronaut4-jvm
+      type: jvm
+      dir: ${{MICRONAUT4_DIR}}
+      updateScript: update-micronaut-version
+      updateVersion: ${{config.micronaut.version}}
+      buildCmd: "./mvnw clean package -DskipTests"
+      runCmd: "${{BASE_JAVA_CMD}} -jar ${{MICRONAUT4_DIR}}/target/micronaut4.jar"
+      logFileStartedRegex: ".*Startup completed in.*"
+    - name: micronaut4-virtual
+      type: jvm
+      dir: ${{MICRONAUT4_DIR}}
+      updateScript: update-micronaut-version
+      updateVersion: ${{config.micronaut.version}}
+      buildCmd: "./mvnw clean package -DskipTests"
+      runCmd: "${{BASE_JAVA_CMD}} -Dfruit.virtual-threads.enabled=true -jar ${{MICRONAUT4_DIR}}/target/micronaut4.jar"
+      logFileStartedRegex: ".*Startup completed in.*"
     - name: spring3-jvm
       type: jvm
       dir: ${{SPRING3_BOOT_DIR}}
@@ -151,6 +168,7 @@ scripts:
     - set-state: RUN.SPRING4_BOOT_DIR ${{REPO_DIR}}/${{PROJ_REPO_NAME}}/springboot4
     - set-state: RUN.QUARKUS3_DIR ${{REPO_DIR}}/${{PROJ_REPO_NAME}}/quarkus3
     - set-state: RUN.QUARKUS3_VIRTUAL_DIR ${{REPO_DIR}}/${{PROJ_REPO_NAME}}/quarkus3-virtual
+    - set-state: RUN.MICRONAUT4_DIR ${{REPO_DIR}}/${{PROJ_REPO_NAME}}/micronaut4
     - set-state: RUN.ASYNC_PROFILER_DIR ${{BASE_DIR}}/${{ASYNC_PROFILER}}
 
   output-vars:
@@ -162,6 +180,7 @@ scripts:
         "SCRIPTS_DIR: ${{SCRIPTS_DIR}}"
         "SPRING3_BOOT_DIR: ${{SPRING3_BOOT_DIR}}"
         "SPRING4_BOOT_DIR: ${{SPRING4_BOOT_DIR}}"
+        "MICRONAUT4_DIR : ${{MICRONAUT4_DIR}}"
         "QUARKUS3_DIR : ${{QUARKUS3_DIR}}"
         "QUARKUS3_VIRTUAL_DIR : ${{QUARKUS3_VIRTUAL_DIR}}"
         "RUNTIMECMDS: ${{RUNTIMECMDS}}"
@@ -229,6 +248,14 @@ scripts:
         artifactId: quarkus-bom
         version: ${{VERSION}}
     - sh: ./mvnw versions:set-property -Dproperty=quarkus.platform.version -DnewVersion=${{VERSION}}
+
+  update-micronaut-version:
+    - script: check-dependency-exists
+      with:
+        groupId: io.micronaut.platform
+        artifactId: micronaut-platform
+        version: ${{VERSION}}
+    - sh: ./mvnw versions:set-property -Dproperty=micronaut.platform.version -DnewVersion=${{VERSION}}
 
   start-test-services:
     - sh: ${{PROJ_REPO_DIR}}/scripts/infra.sh -c 3 -p '${{config.resources.cpu.db}}' -s

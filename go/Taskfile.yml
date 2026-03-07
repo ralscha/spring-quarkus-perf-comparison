@@ -1,0 +1,55 @@
+version: '3'
+
+vars:
+  serverBinary: server{{exeExt}}
+  optimizedBinary: server-pgo{{exeExt}}
+  pgoProfile: server.pprof
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the fruit service binary
+    cmds:
+      - go build -o {{.serverBinary}} .
+
+  run:
+    desc: Start the fruit service
+    cmds:
+      - go run .
+
+  pgo-run-profile:
+    desc: Start the fruit service and write a CPU profile on shutdown
+    cmds:
+      - go run . -cpuprofile {{.pgoProfile}}
+
+  pgo-build:
+    desc: Build an optimized binary using a named PGO profile
+    cmds:
+      - go build -pgo={{.pgoProfile}} -o {{.optimizedBinary}} .
+
+  pgo-run:
+    desc: Run the optimized fruit service binary
+    deps:
+      - pgo-build
+    cmds:
+      - '{{if .exeExt}}{{.optimizedBinary}}{{else}}./{{.optimizedBinary}}{{end}}'
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./...
+
+  format:
+    desc: Format Go sources
+    cmds:
+      - go fix ./...
+      - go fmt ./...
+
+  tidy:
+    desc: Tidy module dependencies
+    cmds:
+      - go mod tidy

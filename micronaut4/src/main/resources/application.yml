@@ -1,0 +1,30 @@
+micronaut:
+  application:
+    name: micronaut4
+
+jackson:
+  serializationInclusion: NON_EMPTY
+
+fruit:
+  virtual-threads:
+    enabled: false
+
+datasources:
+  default:
+    username: fruits
+    password: fruits
+    url: jdbc:postgresql://localhost:5432/fruits
+    driverClassName: org.postgresql.Driver
+
+jpa:
+  default:
+    entity-scan:
+      packages:
+        - org.acme.domain
+    properties:
+      hibernate:
+        cache:
+          use_second_level_cache: true
+          region:
+            factory_class: jcache
+        default_batch_fetch_size: 16

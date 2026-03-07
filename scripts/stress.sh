@@ -11,14 +11,14 @@ if ! command -v jbang >/dev/null 2>&1; then
 fi
 
 # Make sure the port is clear before enabling halting-on-error
-kill $(lsof -t -i:8080) &>/dev/null
+# kill $(lsof -t -i:8080) &>/dev/null
 
 # Make sure DB is down (sanity check)
-${thisdir}/infra.sh -d
+#${thisdir}/infra.sh -d
 
-set -euo pipefail
+#set -euo pipefail
 
-${thisdir}/infra.sh -s
+#${thisdir}/infra.sh -s
 
 # -XX:ActiveProcessorCount doesn't limit the number of available cores as we might think
 # It also doesn't isolate cores, meaning the cores the java process uses could be shared with other workloads

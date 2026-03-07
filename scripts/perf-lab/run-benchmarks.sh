@@ -43,8 +43,8 @@ help() {
   echo "  --repo-url <SCM_REPO_URL>                               The SCM repo url"
   echo "                                                              Default: '${SCM_REPO_URL}'"
   echo "  --runtimes <RUNTIMES>                                   The runtimes to test, separated by commas"
-  echo "                                                              Accepted values (1 or more of): quarkus3-jvm, quarkus3-virtual, quarkus3-native, spring3-jvm, spring3-virtual, spring3-jvm-aot, spring3-native, spring4-jvm, spring4-virtual, spring4-jvm-aot, spring4-native"
-  echo "                                                              Default: 'quarkus3-jvm,quarkus-jvm-virtual,quarkus3-native,spring3-jvm,spring3-jvm-aot,spring3-virtual,spring3-native,spring4-jvm,spring4-virtual,spring4-jvm-aot,spring4-native'"
+  echo "                                                              Accepted values (1 or more of): quarkus3-jvm, quarkus3-virtual, quarkus3-native, micronaut4-jvm, micronaut4-virtual, spring3-jvm, spring3-virtual, spring3-jvm-aot, spring3-native, spring4-jvm, spring4-virtual, spring4-jvm-aot, spring4-native"
+  echo "                                                              Default: 'quarkus3-jvm,quarkus-jvm-virtual,quarkus3-native,micronaut4-jvm,micronaut4-virtual,spring3-jvm,spring3-jvm-aot,spring3-virtual,spring3-native,spring4-jvm,spring4-virtual,spring4-jvm-aot,spring4-native'"
   echo "  --scenario <SCENARIO>                                   The scenario to run"
   echo "                                                              Accepted values: tuned, ootb"
   echo "                                                              Default: Depends on the value of --repo-branch"
@@ -249,7 +249,7 @@ NATIVE_SPRING4_BUILD_OPTIONS=""
 PROFILER="none"
 QUARKUS_BUILD_CONFIG_ARGS=""
 QUARKUS_VERSION=""
-ALLOWED_RUNTIMES=("quarkus3-jvm" "quarkus3-virtual" "quarkus3-native" "spring3-jvm" "spring3-virtual" "spring3-jvm-aot" "spring3-native" "spring4-jvm" "spring4-virtual" "spring4-jvm-aot" "spring4-native")
+ALLOWED_RUNTIMES=("quarkus3-jvm" "quarkus3-virtual" "quarkus3-native" "micronaut4-jvm" "micronaut4-virtual" "spring3-jvm" "spring3-virtual" "spring3-jvm-aot" "spring3-native" "spring4-jvm" "spring4-virtual" "spring4-jvm-aot" "spring4-native")
 RUNTIMES=${ALLOWED_RUNTIMES[@]}
 SPRING_BOOT3_VERSION=""
 SPRING_BOOT4_VERSION=""
