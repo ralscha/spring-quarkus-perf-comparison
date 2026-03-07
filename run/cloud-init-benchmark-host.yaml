@@ -1,0 +1,266 @@
+#cloud-config
+package_update: false
+package_upgrade: false
+
+write_files:
+  - path: /usr/local/bin/bootstrap-benchmark-host.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      export DEBIAN_FRONTEND=noninteractive
+      export JAVA_HOME=/opt/java/openjdk-25
+      export PATH="${JAVA_HOME}/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+      BENCH_ROOT=/opt/benchmarks
+      COMPOSE_DIR="${BENCH_ROOT}/postgres"
+      REPO_DIR="${BENCH_ROOT}/spring-quarkus-perf-comparison"
+      LOG_FILE=/var/log/bootstrap-benchmark-host.log
+      RUNNER_SCRIPT=/usr/local/bin/run-benchmarks.sh
+
+      exec > >(tee -a "${LOG_FILE}") 2>&1
+
+      echo "[$(date --iso-8601=seconds)] Updating Debian packages"
+      apt-get update
+      apt-get -y full-upgrade
+      apt-get install -y \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+        gnupg \
+        jq \
+        lsb-release \
+        tar \
+        unzip \
+        xz-utils
+
+      echo "[$(date --iso-8601=seconds)] Configuring Docker and k6 repositories"
+      install -m 0755 -d /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+      chmod a+r /etc/apt/keyrings/docker.asc
+      . /etc/os-release
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian ${VERSION_CODENAME} stable" \
+        > /etc/apt/sources.list.d/docker.list
+
+      curl -fsSL https://dl.k6.io/key.gpg | gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+      chmod a+r /usr/share/keyrings/k6-archive-keyring.gpg
+      echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+        > /etc/apt/sources.list.d/k6.list
+
+      apt-get update
+      apt-get install -y \
+        containerd.io \
+        docker-buildx-plugin \
+        docker-ce \
+        docker-ce-cli \
+        docker-compose-plugin \
+        k6
+      systemctl enable --now docker
+
+      DEFAULT_USER=$(awk -F: '$3 >= 1000 && $1 != "nobody" { print $1; exit }' /etc/passwd || true)
+      if [ -n "${DEFAULT_USER}" ]; then
+        usermod -aG docker "${DEFAULT_USER}" || true
+      fi
+
+      echo "[$(date --iso-8601=seconds)] Installing OpenJDK 25"
+      rm -rf "${JAVA_HOME}"
+      install -d "${JAVA_HOME}"
+      curl -fsSL "https://api.adoptium.net/v3/binary/latest/25/ga/linux/x64/jdk/hotspot/normal/eclipse?project=jdk" \
+        -o /tmp/openjdk-25.tar.gz
+      tar -xzf /tmp/openjdk-25.tar.gz --strip-components=1 -C "${JAVA_HOME}"
+      ln -sf "${JAVA_HOME}/bin/java" /usr/local/bin/java
+      ln -sf "${JAVA_HOME}/bin/javac" /usr/local/bin/javac
+      cat > /etc/profile.d/java25.sh <<'EOF'
+      export JAVA_HOME=/opt/java/openjdk-25
+      export PATH=$JAVA_HOME/bin:$PATH
+      EOF
+      java -version
+
+      echo "[$(date --iso-8601=seconds)] Installing Go 1.26.1"
+      rm -rf /usr/local/go
+      curl -fsSL https://go.dev/dl/go1.26.1.linux-amd64.tar.gz -o /tmp/go1.26.1.linux-amd64.tar.gz
+      tar -C /usr/local -xzf /tmp/go1.26.1.linux-amd64.tar.gz
+      ln -sf /usr/local/go/bin/go /usr/local/bin/go
+      ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
+      cat > /etc/profile.d/go.sh <<'EOF'
+      export PATH=/usr/local/go/bin:$PATH
+      EOF
+      go version
+
+      if [ ! -d "${REPO_DIR}/.git" ]; then
+        echo "[$(date --iso-8601=seconds)] Cloning benchmark repository"
+        git clone https://github.com/ralscha/spring-quarkus-perf-comparison.git "${REPO_DIR}"
+      else
+        echo "[$(date --iso-8601=seconds)] Repository already present at ${REPO_DIR}"
+      fi
+
+      echo "[$(date --iso-8601=seconds)] Preparing PostgreSQL Docker Compose assets"
+      install -d "${BENCH_ROOT}" "${COMPOSE_DIR}"
+      cp "${REPO_DIR}/run/docker-compose.yml" "${COMPOSE_DIR}/docker-compose.yml"
+      cp "${REPO_DIR}/run/db.sql" "${COMPOSE_DIR}/db.sql"
+      cp "${REPO_DIR}/run/stress-k6.js" "${BENCH_ROOT}/stress-k6.js"
+
+      find "${REPO_DIR}" -maxdepth 2 -name mvnw -type f -exec chmod +x {} \;
+
+      echo "[$(date --iso-8601=seconds)] Building Go module"
+      pushd "${REPO_DIR}/go"
+      go build -o server .
+      popd
+
+      for module in micronaut4 quarkus3 quarkus3-spring-compatibility quarkus3-virtual springboot4; do
+        if [ "${module}" = "springboot4" ]; then
+          continue
+        fi
+        echo "[$(date --iso-8601=seconds)] Building ${module}"
+        pushd "${REPO_DIR}/${module}"
+        ./mvnw -B -DskipTests clean package
+        popd
+      done
+
+      echo "[$(date --iso-8601=seconds)] Building springboot4 JVM artifact"
+      pushd "${REPO_DIR}/springboot4"
+      ./mvnw -B -DskipTests clean package
+      cp target/app.jar target/app-jvm.jar
+
+      echo "[$(date --iso-8601=seconds)] Building springboot4 AOT JVM artifact"
+      ./mvnw -B -DskipTests compile spring-boot:process-aot package
+      popd
+
+      echo "[$(date --iso-8601=seconds)] Running benchmarks"
+      "${RUNNER_SCRIPT}"
+
+      echo "[$(date --iso-8601=seconds)] Benchmark host bootstrap complete"
+
+  - path: /usr/local/bin/run-benchmarks.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      export JAVA_HOME=/opt/java/openjdk-25
+      export PATH="${JAVA_HOME}/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+      BENCH_ROOT=/opt/benchmarks
+      COMPOSE_DIR="${BENCH_ROOT}/postgres"
+      REPO_DIR="${BENCH_ROOT}/spring-quarkus-perf-comparison"
+      RESULTS_DIR="${BENCH_ROOT}/results"
+      RESULTS_FILE="${RESULTS_DIR}/measured-cycle-requests.tsv"
+      LOG_DIR="${RESULTS_DIR}/logs"
+      K6_SCRIPT="${BENCH_ROOT}/stress-k6.js"
+      JVM_BENCH_OPTS='-XX:ActiveProcessorCount=4 -Xms3g -Xmx5g'
+      GO_BENCH_ENV='GOMAXPROCS=4 GOMEMLIMIT=5GiB'
+
+      mkdir -p "${RESULTS_DIR}" "${LOG_DIR}"
+      printf 'framework\tmeasured_cycle_requests\n' > "${RESULTS_FILE}"
+
+      wait_for_postgres() {
+        until docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T postgres pg_isready -U fruits -d fruits >/dev/null 2>&1; do
+          sleep 2
+        done
+      }
+
+      wait_for_server() {
+        local framework="$1"
+        for _ in $(seq 1 90); do
+          if curl -fsS http://127.0.0.1:8080/fruits >/dev/null 2>&1; then
+            return 0
+          fi
+
+          if [ -f "${LOG_DIR}/${framework}.pid" ]; then
+            local server_pid
+            server_pid=$(cat "${LOG_DIR}/${framework}.pid")
+            if ! kill -0 "${server_pid}" >/dev/null 2>&1; then
+              echo "${framework} exited before becoming ready" >&2
+              return 1
+            fi
+          fi
+
+          sleep 2
+        done
+
+        echo "${framework} did not become ready in time" >&2
+        return 1
+      }
+
+      stop_server() {
+        local framework="$1"
+        local pid_file="${LOG_DIR}/${framework}.pid"
+        if [ ! -f "${pid_file}" ]; then
+          return 0
+        fi
+
+        local server_pid
+        server_pid=$(cat "${pid_file}")
+        if kill -0 "${server_pid}" >/dev/null 2>&1; then
+          kill "${server_pid}" >/dev/null 2>&1 || true
+          wait "${server_pid}" >/dev/null 2>&1 || true
+        fi
+        rm -f "${pid_file}"
+      }
+
+      run_framework() {
+        local framework="$1"
+        local workdir="$2"
+        local command="$3"
+        local output_file="${LOG_DIR}/${framework}-k6.txt"
+        local server_log="${LOG_DIR}/${framework}.log"
+        local result
+
+        cleanup_framework() {
+          stop_server "${framework}"
+          docker compose -f "${COMPOSE_DIR}/docker-compose.yml" down >/dev/null 2>&1 || true
+        }
+
+        trap cleanup_framework RETURN
+
+        echo "[$(date --iso-8601=seconds)] Running benchmark for ${framework}"
+        docker compose -f "${COMPOSE_DIR}/docker-compose.yml" up -d --remove-orphans
+        wait_for_postgres
+
+        pushd "${workdir}" >/dev/null
+        bash -lc "exec ${command}" >"${server_log}" 2>&1 &
+        local server_pid=$!
+        popd >/dev/null
+
+        printf '%s\n' "${server_pid}" > "${LOG_DIR}/${framework}.pid"
+
+        wait_for_server "${framework}"
+        k6 run "${K6_SCRIPT}" | tee "${output_file}"
+        result=$(awk -F': ' '/measured cycle requests:/ {print $2}' "${output_file}" | tail -n 1)
+        if [ -z "${result}" ]; then
+          echo "Unable to extract measured cycle requests for ${framework}" >&2
+          return 1
+        fi
+
+        printf '%s\t%s\n' "${framework}" "${result}" | tee -a "${RESULTS_FILE}"
+        trap - RETURN
+        cleanup_framework
+      }
+
+      frameworks=(
+        "go|${REPO_DIR}/go|env ${GO_BENCH_ENV} ./server"
+        "micronaut4|${REPO_DIR}/micronaut4|java ${JVM_BENCH_OPTS} -jar target/micronaut4.jar"
+        "micronaut4-virtual|${REPO_DIR}/micronaut4|java ${JVM_BENCH_OPTS} -Dfruit.virtual-threads.enabled=true -jar target/micronaut4.jar"
+        "quarkus3|${REPO_DIR}/quarkus3|java ${JVM_BENCH_OPTS} -jar target/quarkus-app/quarkus-run.jar"
+        "quarkus3-spring-compatibility|${REPO_DIR}/quarkus3-spring-compatibility|java ${JVM_BENCH_OPTS} -jar target/quarkus-app/quarkus-run.jar"
+        "quarkus3-virtual|${REPO_DIR}/quarkus3-virtual|java ${JVM_BENCH_OPTS} -jar target/quarkus-app/quarkus-run.jar"
+        "springboot4|${REPO_DIR}/springboot4|java ${JVM_BENCH_OPTS} -jar target/app-jvm.jar"
+        "springboot4-virtual|${REPO_DIR}/springboot4|java ${JVM_BENCH_OPTS} -Dspring.threads.virtual.enabled=true -jar target/app-jvm.jar"
+        "springboot4-aot|${REPO_DIR}/springboot4|java ${JVM_BENCH_OPTS} -Dspring.aot.enabled=true -jar target/springboot4.jar"
+      )
+
+      for entry in "${frameworks[@]}"; do
+        IFS='|' read -r framework workdir command <<< "${entry}"
+        run_framework "${framework}" "${workdir}" "${command}"
+      done
+
+      echo "Benchmark results written to ${RESULTS_FILE}"
+
+runcmd:
+  - [cloud-init-per, once, benchmark-bootstrap, /usr/local/bin/bootstrap-benchmark-host.sh]
+
+final_message: "cloud-init finished after $UPTIME seconds. Review /var/log/bootstrap-benchmark-host.log for the benchmark host bootstrap log."
