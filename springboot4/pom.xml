@@ -14,7 +14,7 @@
 	<name>springboot4</name>
 	<description>Spring Boot 4 example</description>
 	<properties>
-		<java.version>21</java.version>
+		<java.version>25</java.version>
 		<spring-boot.version>4.0.3</spring-boot.version>
 	</properties>
 	<dependencies>
