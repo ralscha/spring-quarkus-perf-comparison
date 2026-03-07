@@ -12,6 +12,9 @@ write_files:
 
       export DEBIAN_FRONTEND=noninteractive
       export JAVA_HOME=/opt/java/openjdk-25
+      export GOPATH=/opt/go
+      export GOMODCACHE="${GOPATH}/pkg/mod"
+      export GOCACHE=/var/cache/go-build
       export PATH="${JAVA_HOME}/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
       BENCH_ROOT=/opt/benchmarks
@@ -83,9 +86,13 @@ write_files:
       rm -rf /usr/local/go
       curl -fsSL https://go.dev/dl/go1.26.1.linux-amd64.tar.gz -o /tmp/go1.26.1.linux-amd64.tar.gz
       tar -C /usr/local -xzf /tmp/go1.26.1.linux-amd64.tar.gz
+      install -d -m 0755 "${GOPATH}" "${GOMODCACHE}" "${GOCACHE}"
       ln -sf /usr/local/go/bin/go /usr/local/bin/go
       ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
       cat > /etc/profile.d/go.sh <<'EOF'
+      export GOPATH=/opt/go
+      export GOMODCACHE=$GOPATH/pkg/mod
+      export GOCACHE=/var/cache/go-build
       export PATH=/usr/local/go/bin:$PATH
       EOF
       go version
