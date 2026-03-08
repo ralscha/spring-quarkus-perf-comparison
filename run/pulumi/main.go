@@ -119,8 +119,8 @@ func main() {
 		ctx.Export("sshPrivateKeyPath", pulumi.String(sshPrivateKeyPath))
 		ctx.Export("sshPublicKey", pulumi.String(publicKey))
 		ctx.Export("sshCommand", pulumi.Sprintf("ssh -i %s %s@%s", sshPrivateKeyPath, sshUser, server.Ipv4Address))
-		ctx.Export("cloudInitLogCommand", pulumi.Sprintf("ssh -i %s %s@%s \"tail -n 200 /var/log/cloud-init-output.log -f\"", sshPrivateKeyPath, sshUser, server.Ipv4Address))
-		ctx.Export("benchmarkRunCommand", pulumi.Sprintf("ssh -i %s root@%s \"/usr/local/bin/run-benchmarks.sh\"", sshPrivateKeyPath, server.Ipv4Address))
+		ctx.Export("cloudInitLogCommand", pulumi.Sprintf("tail -n 200 /var/log/cloud-init-output.log -f"))
+		ctx.Export("benchmarkRunCommand", pulumi.Sprintf("/usr/local/bin/run-benchmarks.sh"))
 
 		return nil
 	})

@@ -93,7 +93,7 @@ write_files:
         wait_for_postgres
 
         pushd "${workdir}" >/dev/null
-        bash -lc "exec env ${GO_BENCH_ENV} go run . -cpuprofile server.pprof" >"${server_log}" 2>&1 &
+        bash -lc "exec env ${GO_BENCH_ENV} ./server -cpuprofile ${profile_path}" >"${server_log}" 2>&1 &
         local server_pid=$!
         popd >/dev/null
 
@@ -110,7 +110,7 @@ write_files:
 
         echo "[$(date --iso-8601=seconds)] Building Go PGO binary during bootstrap"
         pushd "${workdir}" >/dev/null
-        env ${GO_BENCH_ENV} go build -pgo=server.pprof -o server_pgo .
+        env ${GO_BENCH_ENV} go build -pgo="${profile_path}" -o server_pgo .
         popd >/dev/null
 
         trap - RETURN
