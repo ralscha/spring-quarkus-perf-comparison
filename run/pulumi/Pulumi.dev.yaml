@@ -1,0 +1,4 @@
+encryptionsalt: v1:foA9w/04GhY=:v1:tLDLBWUjDECq0RMT:uDkshIUpYREn/JX03UyLLfSH24rhEg==
+config:
+  hcloud:token:
+    secure:

@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	defaultServerType   = "ccx23"
+	defaultServerType   = "ccx33"
 	defaultLocation     = "hel1"
-	defaultImage        = "debian-12"
+	defaultImage        = "debian-13"
 	defaultServerName   = "benchmark-hel1"
 	defaultSSHKeyName   = "benchmark-hel1-ed25519"
 	defaultSSHUser      = "root"

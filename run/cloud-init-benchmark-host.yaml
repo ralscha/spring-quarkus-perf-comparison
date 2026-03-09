@@ -130,6 +130,7 @@ write_files:
         lsb-release \
         tar \
         unzip \
+        screen \
         xz-utils
 
       echo "[$(date --iso-8601=seconds)] Configuring Docker and k6 repositories"
