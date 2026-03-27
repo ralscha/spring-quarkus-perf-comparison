@@ -8,6 +8,8 @@ jackson:
 fruit:
   virtual-threads:
     enabled: false
+  executor:
+    pool-size: 20
 
 datasources:
   default:
@@ -15,6 +17,7 @@ datasources:
     password: fruits
     url: jdbc:postgresql://localhost:5432/fruits
     driverClassName: org.postgresql.Driver
+    maximum-pool-size: 20
 
 jpa:
   default:

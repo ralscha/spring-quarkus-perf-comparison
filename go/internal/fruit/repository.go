@@ -22,7 +22,8 @@ type Repository interface {
 }
 
 type PostgresRepository struct {
-	pool *pgxpool.Pool
+	pool       *pgxpool.Pool
+	storeCache *storeCache
 }
 
 func NewPostgresRepository(ctx context.Context, cfg config.DatabaseConfig) (*PostgresRepository, error) {
@@ -43,7 +44,10 @@ func NewPostgresRepository(ctx context.Context, cfg config.DatabaseConfig) (*Pos
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
-	return &PostgresRepository{pool: pool}, nil
+	return &PostgresRepository{
+		pool:       pool,
+		storeCache: newStoreCache(defaultStoreCacheTTL),
+	}, nil
 }
 
 func (r *PostgresRepository) Pool() *pgxpool.Pool {
@@ -141,6 +145,8 @@ func (r *PostgresRepository) CreateFruit(ctx context.Context, fruit FruitDTO) (*
 		return nil, fmt.Errorf("create fruit: %w", err)
 	}
 
+	r.storeCache.invalidateAll()
+
 	return &created, nil
 }
 
@@ -148,17 +154,11 @@ func (r *PostgresRepository) loadStorePrices(ctx context.Context, fruitIDs []int
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			sfp.fruit_id,
-			s.id,
-			s.name,
-			s.currency,
-			s.address,
-			s.city,
-			s.country,
+			sfp.store_id,
 			CAST(sfp.price AS DOUBLE PRECISION)
 		FROM store_fruit_prices sfp
-		JOIN stores s ON s.id = sfp.store_id
 		WHERE sfp.fruit_id = ANY($1)
-		ORDER BY sfp.fruit_id, s.id
+		ORDER BY sfp.fruit_id, sfp.store_id
 	`, fruitIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load store prices: %w", err)
@@ -166,23 +166,30 @@ func (r *PostgresRepository) loadStorePrices(ctx context.Context, fruitIDs []int
 	defer rows.Close()
 
 	pricesByFruit := make(map[int64][]StoreFruitPriceDTO, len(fruitIDs))
+	missingStoreIDs := make([]int64, 0, 8)
+	missingStoreSet := make(map[int64]struct{}, 8)
 	for rows.Next() {
 		var fruitID int64
+		var storeID int64
 		var price StoreFruitPriceDTO
-		price.Store = &StoreDTO{Address: &AddressDTO{}}
 
 		if err := rows.Scan(
 			&fruitID,
-			&price.Store.ID,
-			&price.Store.Name,
-			&price.Store.Currency,
-			&price.Store.Address.Address,
-			&price.Store.Address.City,
-			&price.Store.Address.Country,
+			&storeID,
 			&price.Price,
 		); err != nil {
 			return nil, fmt.Errorf("scan store price: %w", err)
 		}
+
+		cachedStore, ok := r.storeCache.get(storeID)
+		if !ok {
+			if _, seen := missingStoreSet[storeID]; !seen {
+				missingStoreSet[storeID] = struct{}{}
+				missingStoreIDs = append(missingStoreIDs, storeID)
+			}
+			cachedStore = &StoreDTO{ID: storeID}
+		}
+		price.Store = cachedStore
 
 		pricesByFruit[fruitID] = append(pricesByFruit[fruitID], price)
 	}
@@ -191,5 +198,56 @@ func (r *PostgresRepository) loadStorePrices(ctx context.Context, fruitIDs []int
 		return nil, fmt.Errorf("iterate store prices: %w", err)
 	}
 
+	if len(missingStoreIDs) > 0 {
+		storesByID, err := r.loadStoresByID(ctx, missingStoreIDs)
+		if err != nil {
+			return nil, err
+		}
+		r.storeCache.putMany(storesByID)
+		for fruitID, prices := range pricesByFruit {
+			for index := range prices {
+				storeID := prices[index].Store.ID
+				if store, ok := storesByID[storeID]; ok {
+					prices[index].Store = cloneStore(store)
+				}
+			}
+			pricesByFruit[fruitID] = prices
+		}
+	}
+
 	return pricesByFruit, nil
+}
+
+func (r *PostgresRepository) loadStoresByID(ctx context.Context, storeIDs []int64) (map[int64]*StoreDTO, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, name, currency, address, city, country
+		FROM stores
+		WHERE id = ANY($1)
+	`, storeIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load stores by id: %w", err)
+	}
+	defer rows.Close()
+
+	storesByID := make(map[int64]*StoreDTO, len(storeIDs))
+	for rows.Next() {
+		store := &StoreDTO{Address: &AddressDTO{}}
+		if err := rows.Scan(
+			&store.ID,
+			&store.Name,
+			&store.Currency,
+			&store.Address.Address,
+			&store.Address.City,
+			&store.Address.Country,
+		); err != nil {
+			return nil, fmt.Errorf("scan store: %w", err)
+		}
+		storesByID[store.ID] = store
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate stores: %w", err)
+	}
+
+	return storesByID, nil
 }

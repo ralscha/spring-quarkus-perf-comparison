@@ -17,18 +17,22 @@ import (
 type stubRepository struct {
 	listResult   []fruit.FruitDTO
 	listErr      error
+	listCalls    int
 	getResult    *fruit.FruitDTO
 	getErr       error
+	getCalls     int
 	createResult *fruit.FruitDTO
 	createErr    error
 	createdFruit fruit.FruitDTO
 }
 
 func (s *stubRepository) ListFruits(context.Context) ([]fruit.FruitDTO, error) {
+	s.listCalls++
 	return s.listResult, s.listErr
 }
 
 func (s *stubRepository) GetFruitByName(context.Context, string) (*fruit.FruitDTO, error) {
+	s.getCalls++
 	return s.getResult, s.getErr
 }
 
@@ -77,6 +81,9 @@ func TestListFruits(t *testing.T) {
 
 	if len(payload) != 1 || payload[0].Name != "Apple" || payload[0].StorePrices[0].Store.Name != "Store 1" {
 		t.Fatalf("unexpected payload: %+v", payload)
+	}
+	if repository.listCalls != 1 {
+		t.Fatalf("expected repository to be called once, got %d", repository.listCalls)
 	}
 }
 

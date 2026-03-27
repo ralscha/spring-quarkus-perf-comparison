@@ -37,7 +37,6 @@ func (h *Handler) listFruits(writer http.ResponseWriter, request *http.Request) 
 		h.writeInternalError(writer, request, err)
 		return
 	}
-
 	writeJSON(writer, http.StatusOK, fruits)
 }
 
@@ -52,7 +51,6 @@ func (h *Handler) getFruit(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
-
 	writeJSON(writer, http.StatusOK, fruitDTO)
 }
 
@@ -96,10 +94,20 @@ func (h *Handler) writeInternalError(writer http.ResponseWriter, request *http.R
 }
 
 func writeJSON(writer http.ResponseWriter, statusCode int, payload any) {
+	encodedPayload, err := marshalJSON(payload)
+	if err != nil {
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSONBytes(writer, statusCode, encodedPayload)
+}
+
+func writeJSONBytes(writer http.ResponseWriter, statusCode int, payload []byte) {
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(statusCode)
 
-	if err := json.NewEncoder(writer).Encode(payload); err != nil {
+	if _, err := writer.Write(payload); err != nil {
 		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }

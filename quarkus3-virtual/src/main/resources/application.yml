@@ -14,3 +14,4 @@ quarkus:
       password: fruits
       jdbc:
         url: jdbc:postgresql://localhost:5432/fruits
+        max-size: 20

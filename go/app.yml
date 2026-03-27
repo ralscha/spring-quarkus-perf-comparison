@@ -12,7 +12,7 @@ database:
   user: fruits
   password: fruits
   sslmode: disable
-  maxConns: 32
+  maxConns: 20
   minConns: 4
   maxConnIdleTimeSeconds: 300
   maxConnLifetimeSeconds: 1800

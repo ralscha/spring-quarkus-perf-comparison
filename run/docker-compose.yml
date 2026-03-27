@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:18-alpine
+    image: ghcr.io/quarkusio/postgres-17-perf:main
     container_name: fruits-postgres
     environment:
       POSTGRES_DB: fruits
@@ -12,6 +12,32 @@ services:
       - ./db.sql:/docker-entrypoint-initdb.d/01-db.sql:ro
     cpus: ${POSTGRES_CPU_LIMIT:-2.0}
     cpuset: "${POSTGRES_CPUSET:-0-1}"
+    mem_limit: ${POSTGRES_MEMORY_LIMIT:-2g}
+    command:
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - autovacuum=off
+      - -c
+      - full_page_writes=off
+      - -c
+      - wal_level=minimal
+      - -c
+      - archive_mode=off
+      - -c
+      - max_wal_senders=0
+      - -c
+      - max_wal_size=4GB
+      - -c
+      - track_counts=off
+      - -c
+      - checkpoint_timeout=1h
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=256MB
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fruits -d fruits"]
       interval: 5s
