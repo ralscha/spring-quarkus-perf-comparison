@@ -40,9 +40,39 @@ write_files:
 
       exec > >(tee -a "${LOG_FILE}") 2>&1
 
+      log_postgres_diagnostics() {
+        echo "[$(date --iso-8601=seconds)] PostgreSQL container diagnostics" >&2
+        docker compose -f "${COMPOSE_DIR}/docker-compose.yml" ps >&2 || true
+        docker compose -f "${COMPOSE_DIR}/docker-compose.yml" logs --no-color --tail=200 postgres >&2 || true
+      }
+
       wait_for_postgres() {
+        local timeout_seconds="${1:-180}"
+        local waited_seconds=0
+        local status
+
         until docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T postgres pg_isready -U fruits -d fruits >/dev/null 2>&1; do
+          status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' fruits-postgres 2>/dev/null || true)
+
+          case "${status}" in
+            healthy)
+              return 0
+              ;;
+            unhealthy|exited|dead)
+              echo "[$(date --iso-8601=seconds)] PostgreSQL became ${status} before accepting connections" >&2
+              log_postgres_diagnostics
+              return 1
+              ;;
+          esac
+
+          if [ "${waited_seconds}" -ge "${timeout_seconds}" ]; then
+            echo "[$(date --iso-8601=seconds)] Timed out waiting ${timeout_seconds}s for PostgreSQL to become ready" >&2
+            log_postgres_diagnostics
+            return 1
+          fi
+
           sleep 2
+          waited_seconds=$((waited_seconds + 2))
         done
       }
 
@@ -375,9 +405,39 @@ write_files:
         fi
       }
 
+      log_postgres_diagnostics() {
+        echo "[$(date --iso-8601=seconds)] PostgreSQL container diagnostics" >&2
+        docker compose -f "${COMPOSE_DIR}/docker-compose.yml" ps >&2 || true
+        docker compose -f "${COMPOSE_DIR}/docker-compose.yml" logs --no-color --tail=200 postgres >&2 || true
+      }
+
       wait_for_postgres() {
+        local timeout_seconds="${1:-180}"
+        local waited_seconds=0
+        local status
+
         until docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T postgres pg_isready -U fruits -d fruits >/dev/null 2>&1; do
+          status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' fruits-postgres 2>/dev/null || true)
+
+          case "${status}" in
+            healthy)
+              return 0
+              ;;
+            unhealthy|exited|dead)
+              echo "[$(date --iso-8601=seconds)] PostgreSQL became ${status} before accepting connections" >&2
+              log_postgres_diagnostics
+              return 1
+              ;;
+          esac
+
+          if [ "${waited_seconds}" -ge "${timeout_seconds}" ]; then
+            echo "[$(date --iso-8601=seconds)] Timed out waiting ${timeout_seconds}s for PostgreSQL to become ready" >&2
+            log_postgres_diagnostics
+            return 1
+          fi
+
           sleep 2
+          waited_seconds=$((waited_seconds + 2))
         done
       }
 
