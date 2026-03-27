@@ -275,7 +275,6 @@ write_files:
       echo "[$(date --iso-8601=seconds)] Preparing PostgreSQL Docker Compose assets"
       install -d "${BENCH_ROOT}" "${COMPOSE_DIR}" "${BOOTSTRAP_LOG_DIR}"
       cp "${REPO_DIR}/run/docker-compose.yml" "${COMPOSE_DIR}/docker-compose.yml"
-      cp "${REPO_DIR}/run/db.sql" "${COMPOSE_DIR}/db.sql"
       cp "${REPO_DIR}/run/stress-k6.js" "${BENCH_ROOT}/stress-k6.js"
 
       echo "[$(date --iso-8601=seconds)] Pulling Docker Compose images"

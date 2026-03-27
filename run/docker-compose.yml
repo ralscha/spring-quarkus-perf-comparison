@@ -8,8 +8,6 @@ services:
       POSTGRES_PASSWORD: fruits
     ports:
       - "5432:5432"
-    volumes:
-      - ./db.sql:/docker-entrypoint-initdb.d/01-db.sql:ro
     cpus: ${POSTGRES_CPU_LIMIT:-2.0}
     cpuset: "${POSTGRES_CPUSET:-0-1}"
     mem_limit: ${POSTGRES_MEMORY_LIMIT:-2g}
