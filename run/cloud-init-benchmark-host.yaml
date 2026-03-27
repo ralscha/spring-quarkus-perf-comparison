@@ -24,7 +24,19 @@ write_files:
       BOOTSTRAP_LOG_DIR="${BENCH_ROOT}/bootstrap-logs"
       LOG_FILE=/var/log/bootstrap-benchmark-host.log
       RUNNER_SCRIPT=/usr/local/bin/run-benchmarks.sh
-      GO_BENCH_ENV='GOMAXPROCS=4 GOMEMLIMIT=5GiB'
+      export POSTGRES_CPU_LIMIT=2.0
+      export POSTGRES_CPUSET=0-1
+      export APP_CPUSET=2-5
+      export APP_CPU_COUNT=4
+      export K6_CPUSET=6-7
+      export K6_VUS=${K6_VUS:-100}
+      export K6_WARMUP_RAMP_UP_SECONDS=${K6_WARMUP_RAMP_UP_SECONDS:-20}
+      export K6_WARMUP_HOLD_SECONDS=${K6_WARMUP_HOLD_SECONDS:-40}
+      export K6_WARMUP_RAMP_DOWN_SECONDS=${K6_WARMUP_RAMP_DOWN_SECONDS:-10}
+      export K6_MEASURED_HOLD_SECONDS=${K6_MEASURED_HOLD_SECONDS:-20}
+      export K6_GRACEFUL_RAMP_DOWN_SECONDS=${K6_GRACEFUL_RAMP_DOWN_SECONDS:-15}
+      export K6_GRACEFUL_STOP_SECONDS=${K6_GRACEFUL_STOP_SECONDS:-15}
+      GO_BENCH_ENV="GOMAXPROCS=${APP_CPU_COUNT} GOMEMLIMIT=5GiB"
 
       exec > >(tee -a "${LOG_FILE}") 2>&1
 
@@ -32,6 +44,36 @@ write_files:
         until docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T postgres pg_isready -U fruits -d fruits >/dev/null 2>&1; do
           sleep 2
         done
+      }
+
+      tune_host_for_benchmarks() {
+        echo "[$(date --iso-8601=seconds)] Applying host benchmark tuning"
+
+        if command -v swapon >/dev/null 2>&1 && swapon --noheadings --show=name | grep -q .; then
+          swapoff -a || true
+        fi
+
+        cat > /etc/sysctl.d/99-benchmark-host.conf <<'EOF'
+      vm.swappiness=1
+      kernel.numa_balancing=0
+      EOF
+        sysctl --system >/dev/null 2>&1 || true
+
+        local governor_applied=false
+        for governor_file in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+          if [ ! -w "${governor_file}" ]; then
+            continue
+          fi
+
+          echo performance > "${governor_file}" || true
+          governor_applied=true
+        done
+
+        if [ "${governor_applied}" = true ]; then
+          echo "[$(date --iso-8601=seconds)] CPU frequency governor set to performance where supported"
+        else
+          echo "[$(date --iso-8601=seconds)] CPU frequency governor control not available on this host"
+        fi
       }
 
       wait_for_server() {
@@ -87,20 +129,21 @@ write_files:
         trap cleanup_go_pgo RETURN
 
         echo "[$(date --iso-8601=seconds)] Generating Go PGO profile during bootstrap"
+        echo "[$(date --iso-8601=seconds)] CPU topology: postgres=${POSTGRES_CPUSET} app=${APP_CPUSET} k6=${K6_CPUSET}"
         install -d "${BOOTSTRAP_LOG_DIR}"
         rm -f "${profile_path}" "${workdir}/server_pgo" "${pid_file}" "${server_log}" "${k6_log}"
         docker compose -f "${COMPOSE_DIR}/docker-compose.yml" up -d --remove-orphans
         wait_for_postgres
 
         pushd "${workdir}" >/dev/null
-        bash -lc "exec env ${GO_BENCH_ENV} ./server -cpuprofile ${profile_path}" >"${server_log}" 2>&1 &
+        bash -lc "exec taskset --cpu-list ${APP_CPUSET} env ${GO_BENCH_ENV} ./server -cpuprofile ${profile_path}" >"${server_log}" 2>&1 &
         local server_pid=$!
         popd >/dev/null
 
         printf '%s\n' "${server_pid}" > "${pid_file}"
 
         wait_for_server "${pid_file}"
-        k6 run "${BENCH_ROOT}/stress-k6.js" | tee "${k6_log}"
+        taskset --cpu-list "${K6_CPUSET}" k6 run "${BENCH_ROOT}/stress-k6.js" | tee "${k6_log}"
         stop_server "${pid_file}"
 
         if [ ! -s "${profile_path}" ]; then
@@ -155,6 +198,8 @@ write_files:
         docker-compose-plugin \
         k6
       systemctl enable --now docker
+
+      tune_host_for_benchmarks
 
       DEFAULT_USER=$(awk -F: '$3 >= 1000 && $1 != "nobody" { print $1; exit }' /etc/passwd || true)
       if [ -n "${DEFAULT_USER}" ]; then
@@ -254,14 +299,81 @@ write_files:
       COMPOSE_DIR="${BENCH_ROOT}/postgres"
       REPO_DIR="${BENCH_ROOT}/spring-quarkus-perf-comparison"
       RESULTS_DIR="${BENCH_ROOT}/results"
-      RESULTS_FILE="${RESULTS_DIR}/measured-cycle-requests.tsv"
+      RESULTS_FILE="${RESULTS_DIR}/measured-cycle-summary.tsv"
+      RAW_RESULTS_FILE="${RESULTS_DIR}/measured-cycle-runs.tsv"
       LOG_DIR="${RESULTS_DIR}/logs"
       K6_SCRIPT="${BENCH_ROOT}/stress-k6.js"
-      JVM_BENCH_OPTS='-XX:ActiveProcessorCount=4 -Xms3g -Xmx5g'
-      GO_BENCH_ENV='GOMAXPROCS=4 GOMEMLIMIT=5GiB'
+      export POSTGRES_CPU_LIMIT=2.0
+      export POSTGRES_CPUSET=0-1
+      export APP_CPUSET=2-5
+      export APP_CPU_COUNT=4
+      export K6_CPUSET=6-7
+      export K6_VUS=${K6_VUS:-100}
+      export K6_WARMUP_RAMP_UP_SECONDS=${K6_WARMUP_RAMP_UP_SECONDS:-20}
+      export K6_WARMUP_HOLD_SECONDS=${K6_WARMUP_HOLD_SECONDS:-40}
+      export K6_WARMUP_RAMP_DOWN_SECONDS=${K6_WARMUP_RAMP_DOWN_SECONDS:-10}
+      export K6_MEASURED_HOLD_SECONDS=${K6_MEASURED_HOLD_SECONDS:-20}
+      export K6_GRACEFUL_RAMP_DOWN_SECONDS=${K6_GRACEFUL_RAMP_DOWN_SECONDS:-15}
+      export K6_GRACEFUL_STOP_SECONDS=${K6_GRACEFUL_STOP_SECONDS:-15}
+      BENCHMARK_ROUNDS=${BENCHMARK_ROUNDS:-5}
+      BENCHMARK_VARIANCE_WARN_PCT=${BENCHMARK_VARIANCE_WARN_PCT:-5}
+      JVM_BENCH_OPTS="-XX:ActiveProcessorCount=${APP_CPU_COUNT} -Xms3g -Xmx5g"
+      GO_BENCH_ENV="GOMAXPROCS=${APP_CPU_COUNT} GOMEMLIMIT=5GiB"
+      RESULTS_RANKING_FILE="${RESULTS_DIR}/measured-cycle-ranking.tsv"
 
       mkdir -p "${RESULTS_DIR}" "${LOG_DIR}"
-      printf 'framework\tmeasured_cycle_requests\n' > "${RESULTS_FILE}"
+      printf 'round\tframework\tmeasured_cycle_requests\tlatency_p50_ms\tlatency_p95_ms\tlatency_p99_ms\n' > "${RAW_RESULTS_FILE}"
+      printf 'framework\tmedian_measured_cycle_requests\tstdev_measured_cycle_requests\tmin_measured_cycle_requests\tmax_measured_cycle_requests\tmedian_latency_p50_ms\tstdev_latency_p50_ms\tmedian_latency_p95_ms\tstdev_latency_p95_ms\tmedian_latency_p99_ms\tstdev_latency_p99_ms\n' > "${RESULTS_FILE}"
+      echo "[$(date --iso-8601=seconds)] CPU topology: postgres=${POSTGRES_CPUSET} app=${APP_CPUSET} k6=${K6_CPUSET}"
+      echo "[$(date --iso-8601=seconds)] Benchmark rounds: ${BENCHMARK_ROUNDS}"
+      echo "[$(date --iso-8601=seconds)] k6 timings: vus=${K6_VUS} warmup=${K6_WARMUP_RAMP_UP_SECONDS}s ramp + ${K6_WARMUP_HOLD_SECONDS}s hold + ${K6_WARMUP_RAMP_DOWN_SECONDS}s rampdown, measured=${K6_MEASURED_HOLD_SECONDS}s constant"
+      echo "[$(date --iso-8601=seconds)] Variance warning threshold: ${BENCHMARK_VARIANCE_WARN_PCT}% coefficient of variation"
+
+      case "${BENCHMARK_ROUNDS}" in
+        ''|*[!0-9]*)
+          echo "BENCHMARK_ROUNDS must be a positive integer" >&2
+          exit 1
+          ;;
+      esac
+
+      if [ "${BENCHMARK_ROUNDS}" -lt 1 ]; then
+        echo "BENCHMARK_ROUNDS must be at least 1" >&2
+        exit 1
+      fi
+
+      case "${BENCHMARK_VARIANCE_WARN_PCT}" in
+        ''|*[!0-9]*|0)
+          echo "BENCHMARK_VARIANCE_WARN_PCT must be a positive integer" >&2
+          exit 1
+          ;;
+      esac
+
+      tune_host_for_benchmarks() {
+        echo "[$(date --iso-8601=seconds)] Re-applying host benchmark tuning"
+
+        if command -v swapon >/dev/null 2>&1 && swapon --noheadings --show=name | grep -q .; then
+          swapoff -a || true
+        fi
+
+        sysctl -w vm.swappiness=1 >/dev/null 2>&1 || true
+        sysctl -w kernel.numa_balancing=0 >/dev/null 2>&1 || true
+
+        local governor_applied=false
+        for governor_file in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+          if [ ! -w "${governor_file}" ]; then
+            continue
+          fi
+
+          echo performance > "${governor_file}" || true
+          governor_applied=true
+        done
+
+        if [ "${governor_applied}" = true ]; then
+          echo "[$(date --iso-8601=seconds)] CPU frequency governor set to performance where supported"
+        else
+          echo "[$(date --iso-8601=seconds)] CPU frequency governor control not available on this host"
+        fi
+      }
 
       wait_for_postgres() {
         until docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T postgres pg_isready -U fruits -d fruits >/dev/null 2>&1; do
@@ -308,13 +420,159 @@ write_files:
         rm -f "${pid_file}"
       }
 
-      run_framework() {
+      extract_summary_value() {
+        local label="$1"
+        local file_path="$2"
+
+        awk -F': ' -v label="${label}" '$1 == label { print $2 }' "${file_path}" | tail -n 1
+      }
+
+      sorted_metric_values() {
         local framework="$1"
-        local workdir="$2"
-        local command="$3"
-        local output_file="${LOG_DIR}/${framework}-k6.txt"
-        local server_log="${LOG_DIR}/${framework}.log"
-        local result
+        local column="$2"
+
+        awk -F'\t' -v framework="${framework}" -v column="${column}" 'NR > 1 && $2 == framework { print $column }' "${RAW_RESULTS_FILE}" | sort -g
+      }
+
+      metric_values() {
+        local framework="$1"
+        local column="$2"
+
+        awk -F'\t' -v framework="${framework}" -v column="${column}" 'NR > 1 && $2 == framework { print $column }' "${RAW_RESULTS_FILE}"
+      }
+
+      median_from_sorted_values() {
+        awk '
+          {
+            values[count++] = $1
+          }
+          END {
+            if (count == 0) {
+              exit 1
+            }
+
+            mid = int(count / 2)
+            if (count % 2 == 1) {
+              print values[mid]
+              exit 0
+            }
+
+            printf "%.3f\n", (values[mid - 1] + values[mid]) / 2
+          }
+        '
+      }
+
+      stdev_from_values() {
+        awk '
+          {
+            values[count++] = $1
+            sum += $1
+          }
+          END {
+            if (count < 2) {
+              print "0.000"
+              exit 0
+            }
+
+            mean = sum / count
+            for (index = 0; index < count; index++) {
+              diff = values[index] - mean
+              squared_sum += diff * diff
+            }
+
+            printf "%.3f\n", sqrt(squared_sum / (count - 1))
+          }
+        '
+      }
+
+      summarize_framework_results() {
+        local framework="$1"
+        local requests_median
+        local requests_stdev
+        local requests_min
+        local requests_max
+        local latency_p50_median
+        local latency_p50_stdev
+        local latency_p95_median
+        local latency_p95_stdev
+        local latency_p99_median
+        local latency_p99_stdev
+
+        requests_median=$(sorted_metric_values "${framework}" 3 | median_from_sorted_values)
+        requests_stdev=$(metric_values "${framework}" 3 | stdev_from_values)
+        requests_min=$(sorted_metric_values "${framework}" 3 | head -n 1)
+        requests_max=$(sorted_metric_values "${framework}" 3 | tail -n 1)
+        latency_p50_median=$(sorted_metric_values "${framework}" 4 | median_from_sorted_values)
+        latency_p50_stdev=$(metric_values "${framework}" 4 | stdev_from_values)
+        latency_p95_median=$(sorted_metric_values "${framework}" 5 | median_from_sorted_values)
+        latency_p95_stdev=$(metric_values "${framework}" 5 | stdev_from_values)
+        latency_p99_median=$(sorted_metric_values "${framework}" 6 | median_from_sorted_values)
+        latency_p99_stdev=$(metric_values "${framework}" 6 | stdev_from_values)
+
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+          "${framework}" \
+          "${requests_median}" \
+          "${requests_stdev}" \
+          "${requests_min}" \
+          "${requests_max}" \
+          "${latency_p50_median}" \
+          "${latency_p50_stdev}" \
+          "${latency_p95_median}" \
+          "${latency_p95_stdev}" \
+          "${latency_p99_median}" \
+          "${latency_p99_stdev}" \
+          | tee -a "${RESULTS_FILE}"
+      }
+
+      build_ranking_report() {
+        printf 'rank\tframework\tmedian_requests\trequests_stdev\trequests_cv_pct\tmedian_p95_ms\tp95_stdev\tp95_cv_pct\tvariance_flag\n' > "${RESULTS_RANKING_FILE}"
+
+        awk -F'\t' -v warn_pct="${BENCHMARK_VARIANCE_WARN_PCT}" '
+          BEGIN {
+            OFS = "\t"
+          }
+          NR == 1 {
+            next
+          }
+          {
+            throughput_cv = ($2 + 0) > 0 ? (($3 + 0) / ($2 + 0)) * 100 : 0
+            latency_cv = ($8 + 0) > 0 ? (($9 + 0) / ($8 + 0)) * 100 : 0
+            flag = "stable"
+
+            if (throughput_cv >= warn_pct || latency_cv >= warn_pct) {
+              flag = "high-variance"
+            }
+
+            printf "%s\t%.3f\t%.3f\t%.2f\t%.3f\t%.3f\t%.2f\t%s\n", $1, $2 + 0, $3 + 0, throughput_cv, $8 + 0, $9 + 0, latency_cv, flag
+          }
+        ' "${RESULTS_FILE}" | sort -t "$(printf '\t')" -k2,2gr | awk -F'\t' 'BEGIN { OFS = "\t" } { print NR, $0 }' >> "${RESULTS_RANKING_FILE}"
+      }
+
+      print_benchmark_summary() {
+        echo "Benchmark ranking:"
+        cat "${RESULTS_RANKING_FILE}"
+
+        echo "Variance warnings:"
+        if ! awk -F'\t' 'NR > 1 && $9 == "high-variance" { print }' "${RESULTS_RANKING_FILE}"; then
+          :
+        fi
+
+        if ! awk -F'\t' 'NR > 1 && $9 == "high-variance" { found = 1 } END { exit found ? 0 : 1 }' "${RESULTS_RANKING_FILE}"; then
+          echo "none"
+        fi
+      }
+
+      run_framework() {
+        local round="$1"
+        local framework="$2"
+        local workdir="$3"
+        local command="$4"
+        local output_file="${LOG_DIR}/${framework}-round-${round}-k6.txt"
+        local server_log="${LOG_DIR}/${framework}-round-${round}.log"
+        local result_requests
+        local latency_p50
+        local latency_p95
+        local latency_p99
 
         cleanup_framework() {
           stop_server "${framework}"
@@ -323,26 +581,37 @@ write_files:
 
         trap cleanup_framework RETURN
 
-        echo "[$(date --iso-8601=seconds)] Running benchmark for ${framework}"
+        echo "[$(date --iso-8601=seconds)] Running benchmark round ${round}/${BENCHMARK_ROUNDS} for ${framework}"
         docker compose -f "${COMPOSE_DIR}/docker-compose.yml" up -d --remove-orphans
         wait_for_postgres
 
         pushd "${workdir}" >/dev/null
-        bash -lc "exec ${command}" >"${server_log}" 2>&1 &
+        bash -lc "exec taskset --cpu-list ${APP_CPUSET} ${command}" >"${server_log}" 2>&1 &
         local server_pid=$!
         popd >/dev/null
 
         printf '%s\n' "${server_pid}" > "${LOG_DIR}/${framework}.pid"
 
         wait_for_server "${framework}"
-        k6 run "${K6_SCRIPT}" | tee "${output_file}"
-        result=$(awk -F': ' '/measured cycle requests:/ {print $2}' "${output_file}" | tail -n 1)
-        if [ -z "${result}" ]; then
+        taskset --cpu-list "${K6_CPUSET}" k6 run "${K6_SCRIPT}" | tee "${output_file}"
+        result_requests=$(extract_summary_value "measured cycle requests" "${output_file}")
+        latency_p50=$(extract_summary_value "measured cycle latency p50 ms" "${output_file}")
+        latency_p95=$(extract_summary_value "measured cycle latency p95 ms" "${output_file}")
+        latency_p99=$(extract_summary_value "measured cycle latency p99 ms" "${output_file}")
+
+        if [ -z "${result_requests}" ] || [ -z "${latency_p50}" ] || [ -z "${latency_p95}" ] || [ -z "${latency_p99}" ]; then
           echo "Unable to extract measured cycle requests for ${framework}" >&2
           return 1
         fi
 
-        printf '%s\t%s\n' "${framework}" "${result}" | tee -a "${RESULTS_FILE}"
+        printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+          "${round}" \
+          "${framework}" \
+          "${result_requests}" \
+          "${latency_p50}" \
+          "${latency_p95}" \
+          "${latency_p99}" \
+          | tee -a "${RAW_RESULTS_FILE}"
         trap - RETURN
         cleanup_framework
       }
@@ -360,12 +629,33 @@ write_files:
         "springboot4-aot|${REPO_DIR}/springboot4|java ${JVM_BENCH_OPTS} -Dspring.aot.enabled=true -jar target/springboot4.jar"
       )
 
+      framework_names=()
+      tune_host_for_benchmarks
+
       for entry in "${frameworks[@]}"; do
-        IFS='|' read -r framework workdir command <<< "${entry}"
-        run_framework "${framework}" "${workdir}" "${command}"
+        IFS='|' read -r framework _ <<< "${entry}"
+        framework_names+=("${framework}")
       done
 
-      echo "Benchmark results written to ${RESULTS_FILE}"
+      for round in $(seq 1 "${BENCHMARK_ROUNDS}"); do
+        mapfile -t shuffled_frameworks < <(printf '%s\n' "${frameworks[@]}" | shuf)
+
+        for entry in "${shuffled_frameworks[@]}"; do
+          IFS='|' read -r framework workdir command <<< "${entry}"
+          run_framework "${round}" "${framework}" "${workdir}" "${command}"
+        done
+      done
+
+      for framework in "${framework_names[@]}"; do
+        summarize_framework_results "${framework}"
+      done
+
+      build_ranking_report
+      print_benchmark_summary
+
+      echo "Benchmark run details written to ${RAW_RESULTS_FILE}"
+      echo "Benchmark summary written to ${RESULTS_FILE}"
+      echo "Benchmark ranking written to ${RESULTS_RANKING_FILE}"
 
 runcmd:
   - [cloud-init-per, once, benchmark-bootstrap, /usr/local/bin/bootstrap-benchmark-host.sh]

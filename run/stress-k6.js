@@ -2,14 +2,26 @@ import http from 'k6/http';
 import { check } from 'k6';
 import { Counter } from 'k6/metrics';
 
+function readPositiveIntEnv(name, defaultValue) {
+  const rawValue = __ENV[name];
+
+  if (rawValue === undefined || rawValue === '') {
+    return defaultValue;
+  }
+
+  const parsedValue = Number.parseInt(rawValue, 10);
+  return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : defaultValue;
+}
+
 const baseUrl = 'http://localhost:8080';
-const vus = 100;
-const rampUpDurationSeconds = 15;
-const holdDurationSeconds = 20;
-const rampDownDurationSeconds = 15;
+const vus = readPositiveIntEnv('K6_VUS', 100);
+const warmupRampUpDurationSeconds = readPositiveIntEnv('K6_WARMUP_RAMP_UP_SECONDS', 20);
+const warmupHoldDurationSeconds = readPositiveIntEnv('K6_WARMUP_HOLD_SECONDS', 40);
+const warmupRampDownDurationSeconds = readPositiveIntEnv('K6_WARMUP_RAMP_DOWN_SECONDS', 10);
+const measuredHoldDurationSeconds = readPositiveIntEnv('K6_MEASURED_HOLD_SECONDS', 20);
 const requestTimeoutSeconds = 0;
-const gracefulRampDownSeconds = 30;
-const gracefulStopSeconds = 30;
+const gracefulRampDownSeconds = readPositiveIntEnv('K6_GRACEFUL_RAMP_DOWN_SECONDS', 15);
+const gracefulStopSeconds = readPositiveIntEnv('K6_GRACEFUL_STOP_SECONDS', 15);
 
 const measuredScenarioName = 'measured_cycle';
 const measuredRequestCounter = new Counter('measured_requests');
@@ -24,34 +36,35 @@ function formatSeconds(seconds) {
 }
 
 const warmupCycleStartTime = formatSeconds(
-  rampUpDurationSeconds
-    + holdDurationSeconds
-    + rampDownDurationSeconds
+  warmupRampUpDurationSeconds
+    + warmupHoldDurationSeconds
+    + warmupRampDownDurationSeconds
 );
 
-function createStages() {
+function createWarmupStages() {
   return [
-    { duration: formatSeconds(rampUpDurationSeconds), target: vus },
-    { duration: formatSeconds(holdDurationSeconds), target: vus },
-    { duration: formatSeconds(rampDownDurationSeconds), target: 0 },
+    { duration: formatSeconds(warmupRampUpDurationSeconds), target: vus },
+    { duration: formatSeconds(warmupHoldDurationSeconds), target: vus },
+    { duration: formatSeconds(warmupRampDownDurationSeconds), target: 0 },
   ];
 }
 
 export const options = {
   discardResponseBodies: true,
+  summaryTrendStats: ['min', 'avg', 'med', 'max', 'p(50)', 'p(95)', 'p(99)'],
   scenarios: {
     warmup_cycle: {
       executor: 'ramping-vus',
-      stages: createStages(),
+      stages: createWarmupStages(),
       gracefulRampDown: formatSeconds(gracefulRampDownSeconds),
       gracefulStop: formatSeconds(gracefulStopSeconds),
       exec: 'warmupCycle',
     },
     measured_cycle: {
-      executor: 'ramping-vus',
+      executor: 'constant-vus',
       startTime: warmupCycleStartTime,
-      stages: createStages(),
-      gracefulRampDown: formatSeconds(gracefulRampDownSeconds),
+      vus,
+      duration: formatSeconds(measuredHoldDurationSeconds),
       gracefulStop: formatSeconds(gracefulStopSeconds),
       exec: 'measuredCycle',
     },
@@ -119,8 +132,11 @@ export function handleSummary(data) {
     && getThresholdResult(measuredDurationMetric, 'max>=0');
 
   const measuredRequestCount = measuredRequestsMetric?.values?.count ?? 0;
+  const measuredLatencyP50 = Number(measuredDurationMetric?.values?.['p(50)'] ?? 0).toFixed(3);
+  const measuredLatencyP95 = Number(measuredDurationMetric?.values?.['p(95)'] ?? 0).toFixed(3);
+  const measuredLatencyP99 = Number(measuredDurationMetric?.values?.['p(99)'] ?? 0).toFixed(3);
 
   return {
-    stdout: `all checks passed: ${allChecksPassed ? 'yes' : 'no'}\nmeasured cycle requests: ${measuredRequestCount}\n`,
+    stdout: `all checks passed: ${allChecksPassed ? 'yes' : 'no'}\nmeasured cycle requests: ${measuredRequestCount}\nmeasured cycle latency p50 ms: ${measuredLatencyP50}\nmeasured cycle latency p95 ms: ${measuredLatencyP95}\nmeasured cycle latency p99 ms: ${measuredLatencyP99}\n`,
   };
 }
