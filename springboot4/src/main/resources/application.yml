@@ -7,6 +7,7 @@ spring:
       # @simasch: Sets the jdbc pool size to be the same that Quarkus uses
       # see https://github.com/quarkusio/spring-quarkus-perf-comparison/pull/114
       maximum-pool-size: 20
+      auto-commit: false
   jackson:
     default-property-inclusion: non_empty
   jpa:
@@ -26,10 +27,6 @@ spring:
         # @simasch: Sets the hibernate batch size to be the same that Quarkus uses
         # see https://github.com/quarkusio/spring-quarkus-perf-comparison/pull/114
         default_batch_fetch_size: 16
+        connection:
+          provider_disables_autocommit: true
 
-# In order to remove errors and allow the Spring application to handle the load without errors
-# See https://github.com/quarkusio/spring-quarkus-perf-comparison/issues/60#issuecomment-3724614394
-# for a conversation about why this setting is set this way
-server:
-  tomcat:
-    max-keep-alive-requests: -1

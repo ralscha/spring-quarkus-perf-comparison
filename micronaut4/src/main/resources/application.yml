@@ -18,6 +18,7 @@ datasources:
     url: jdbc:postgresql://localhost:5432/fruits
     driverClassName: org.postgresql.Driver
     maximum-pool-size: 20
+    auto-commit: false
 
 jpa:
   default:
@@ -31,3 +32,5 @@ jpa:
           region:
             factory_class: jcache
         default_batch_fetch_size: 16
+        connection:
+          provider_disables_autocommit: true
