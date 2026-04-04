@@ -12,6 +12,7 @@
     <assertj.version>3.27.7</assertj.version>
     <caffeine.version>3.2.3</caffeine.version>
     <compiler-plugin.version>3.15.0</compiler-plugin.version>
+    <hibernate.version>7.3.0.Final</hibernate.version>
     <java.version>25</java.version>
     <maven.compiler.release>25</maven.compiler.release>
     <micronaut.core.version>5.0.0-M20</micronaut.core.version>
@@ -196,6 +197,19 @@
             <maven.home>${maven.home}</maven.home>
           </systemPropertyVariables>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.hibernate.orm</groupId>
+        <artifactId>hibernate-maven-plugin</artifactId>
+        <version>${hibernate.version}</version>
+        <executions>
+          <execution>
+            <id>enhance</id>
+            <goals>
+              <goal>enhance</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
