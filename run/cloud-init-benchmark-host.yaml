@@ -289,7 +289,7 @@ write_files:
 
       prepare_go_pgo_binary
 
-      for module in micronaut4 quarkus3 quarkus3-spring-compatibility quarkus3-virtual springboot4; do
+      for module in micronaut4 micronaut5 quarkus3 quarkus3-spring-compatibility quarkus3-virtual springboot4; do
         if [ "${module}" = "springboot4" ]; then
           continue
         fi
@@ -680,6 +680,8 @@ write_files:
         "go-pgo|${REPO_DIR}/go|env ${GO_BENCH_ENV} ./server_pgo"
         "micronaut4|${REPO_DIR}/micronaut4|java ${JVM_BENCH_OPTS} -jar target/micronaut4.jar"
         "micronaut4-virtual|${REPO_DIR}/micronaut4|java ${JVM_BENCH_OPTS} -Dfruit.virtual-threads.enabled=true -jar target/micronaut4.jar"
+        "micronaut5|${REPO_DIR}/micronaut5|java ${JVM_BENCH_OPTS} -jar target/micronaut5.jar"
+        "micronaut5-virtual|${REPO_DIR}/micronaut5|java ${JVM_BENCH_OPTS} -Dfruit.virtual-threads.enabled=true -jar target/micronaut5.jar"
         "quarkus3|${REPO_DIR}/quarkus3|java ${JVM_BENCH_OPTS} -jar target/quarkus-app/quarkus-run.jar"
         "quarkus3-spring-compatibility|${REPO_DIR}/quarkus3-spring-compatibility|java ${JVM_BENCH_OPTS} -jar target/quarkus-app/quarkus-run.jar"
         "quarkus3-virtual|${REPO_DIR}/quarkus3-virtual|java ${JVM_BENCH_OPTS} -jar target/quarkus-app/quarkus-run.jar"

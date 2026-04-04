@@ -3,10 +3,10 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.acme</groupId>
-  <artifactId>micronaut4</artifactId>
+  <artifactId>micronaut5</artifactId>
   <version>1.0</version>
-  <name>micronaut4</name>
-  <description>Micronaut 4 example</description>
+  <name>micronaut5</name>
+  <description>Micronaut 5 example</description>
 
   <properties>
     <assertj.version>3.27.7</assertj.version>
@@ -14,11 +14,12 @@
     <compiler-plugin.version>3.15.0</compiler-plugin.version>
     <java.version>25</java.version>
     <maven.compiler.release>25</maven.compiler.release>
-    <micronaut.core.version>4.10.18</micronaut.core.version>
-    <micronaut.data.version>4.14.3</micronaut.data.version>
-    <micronaut.platform.version>4.10.11</micronaut.platform.version>
-    <micronaut.serde.version>2.16.2</micronaut.serde.version>
-    <micronaut.validation.version>4.12.0</micronaut.validation.version>
+    <micronaut.core.version>5.0.0-M20</micronaut.core.version>
+    <micronaut.data.version>5.0.0-M5</micronaut.data.version>
+    <micronaut.serde.version>3.0.0-M6</micronaut.serde.version>
+    <micronaut.sql.version>7.0.1-M1</micronaut.sql.version>
+    <micronaut.test.version>5.0.0-M7</micronaut.test.version>
+    <micronaut.validation.version>5.0.0-M1</micronaut.validation.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
     <surefire-plugin.version>3.5.5</surefire-plugin.version>
   </properties>
@@ -26,9 +27,44 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>io.micronaut.platform</groupId>
-        <artifactId>micronaut-platform</artifactId>
-        <version>${micronaut.platform.version}</version>
+        <groupId>io.micronaut</groupId>
+        <artifactId>micronaut-core-bom</artifactId>
+        <version>${micronaut.core.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.micronaut.data</groupId>
+        <artifactId>micronaut-data-bom</artifactId>
+        <version>${micronaut.data.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.micronaut.serde</groupId>
+        <artifactId>micronaut-serde-bom</artifactId>
+        <version>${micronaut.serde.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.micronaut.sql</groupId>
+        <artifactId>micronaut-sql-bom</artifactId>
+        <version>${micronaut.sql.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.micronaut.test</groupId>
+        <artifactId>micronaut-test-bom</artifactId>
+        <version>${micronaut.test.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.micronaut.validation</groupId>
+        <artifactId>micronaut-validation-bom</artifactId>
+        <version>${micronaut.validation.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -67,6 +103,7 @@
     <dependency>
       <groupId>com.github.ben-manes.caffeine</groupId>
       <artifactId>caffeine</artifactId>
+      <version>${caffeine.version}</version>
     </dependency>
     <dependency>
       <groupId>com.github.ben-manes.caffeine</groupId>
@@ -118,7 +155,7 @@
   </dependencies>
 
   <build>
-    <finalName>micronaut4</finalName>
+    <finalName>micronaut5</finalName>
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
