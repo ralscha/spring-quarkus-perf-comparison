@@ -16,7 +16,7 @@
     <maven.compiler.release>25</maven.compiler.release>
     <micronaut.core.version>4.10.18</micronaut.core.version>
     <micronaut.data.version>4.14.3</micronaut.data.version>
-    <micronaut.platform.version>4.10.11</micronaut.platform.version>
+    <micronaut.platform.version>4.10.13</micronaut.platform.version>
     <micronaut.serde.version>2.16.2</micronaut.serde.version>
     <micronaut.validation.version>4.12.0</micronaut.validation.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
