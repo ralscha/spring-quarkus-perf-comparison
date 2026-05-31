@@ -10,9 +10,9 @@
 
   <properties>
     <assertj.version>3.27.7</assertj.version>
-    <caffeine.version>3.2.3</caffeine.version>
+    <caffeine.version>3.2.4</caffeine.version>
     <compiler-plugin.version>3.15.0</compiler-plugin.version>
-    <hibernate.version>7.3.2.Final</hibernate.version>
+    <hibernate.version>7.3.3.Final</hibernate.version>
     <java.version>25</java.version>
     <maven.compiler.release>25</maven.compiler.release>
     <micronaut.core.version>5.0.0-M20</micronaut.core.version>
@@ -22,7 +22,7 @@
     <micronaut.test.version>5.0.0-M7</micronaut.test.version>
     <micronaut.validation.version>5.0.0-M1</micronaut.validation.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
-    <surefire-plugin.version>3.5.5</surefire-plugin.version>
+    <surefire-plugin.version>3.5.6</surefire-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -164,6 +164,34 @@
         <configuration>
           <compilerArgs>
             <arg>-parameters</arg>
+
+            <arg>-XDcompilePolicy=simple</arg>
+
+            <arg>--should-stop=ifError=FLOW</arg>
+
+            <arg>-Xplugin:ErrorProne</arg>
+
+            <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
+
+            <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
+
+            <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
+
+            <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</arg>
+
+            <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED</arg>
+
+            <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED</arg>
+
+            <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</arg>
+
+            <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</arg>
+
+            <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</arg>
+
+            <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</arg>
+
+            <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED</arg>
           </compilerArgs>
           <annotationProcessorPaths>
             <path>
@@ -185,6 +213,15 @@
               <groupId>io.micronaut.validation</groupId>
               <artifactId>micronaut-validation-processor</artifactId>
               <version>${micronaut.validation.version}</version>
+            </path>
+          </annotationProcessorPaths>
+
+          <fork>true</fork>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>com.google.errorprone</groupId>
+              <artifactId>error_prone_core</artifactId>
+              <version>2.49.0</version>
             </path>
           </annotationProcessorPaths>
         </configuration>
@@ -217,10 +254,10 @@
         <version>${shade-plugin.version}</version>
         <executions>
           <execution>
-            <phase>package</phase>
             <goals>
               <goal>shade</goal>
             </goals>
+            <phase>package</phase>
             <configuration>
               <createDependencyReducedPom>false</createDependencyReducedPom>
               <transformers>
@@ -233,6 +270,18 @@
           </execution>
         </executions>
       </plugin>
+
+      <plugin>
+        <groupId>com.github.ekryd.sortpom</groupId>
+        <artifactId>sortpom-maven-plugin</artifactId>
+        <version>4.0.0</version>
+        <configuration>
+          <createBackupFile>false</createBackupFile>
+          <nrOfIndentSpace>2</nrOfIndentSpace>
+          <sortProperties>false</sortProperties>
+        </configuration>
+      </plugin>
+
     </plugins>
   </build>
 </project>
