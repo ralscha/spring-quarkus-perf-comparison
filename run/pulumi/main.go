@@ -13,15 +13,16 @@ import (
 )
 
 const (
-	defaultServerType   = "ccx33"
-	defaultLocation     = "hel1"
-	defaultImage        = "debian-13"
-	defaultServerName   = "benchmark-hel1"
-	defaultSSHKeyName   = "benchmark-hel1-ed25519"
-	defaultSSHUser      = "root"
-	defaultSSHKeyFile   = "benchmark-hel1-ed25519"
-	cloudInitConfigPath = "..\\cloud-init-benchmark-host.yaml"
+	defaultServerType = "ccx33"
+	defaultLocation   = "hel1"
+	defaultImage      = "debian-13"
+	defaultServerName = "benchmark-hel1"
+	defaultSSHKeyName = "benchmark-hel1-ed25519"
+	defaultSSHUser    = "root"
+	defaultSSHKeyFile = "benchmark-hel1-ed25519"
 )
+
+var cloudInitConfigPath = filepath.Join("..", "cloud-init-benchmark-host.yaml")
 
 func main() {
 	pulumi.Run(func(ctx *pulumi.Context) error {

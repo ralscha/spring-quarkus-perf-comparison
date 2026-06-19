@@ -9,20 +9,20 @@
   <description>Micronaut 5 example</description>
 
   <properties>
-    <assertj.version>3.27.7</assertj.version>
+    <assertj.version>4.0.0-M1</assertj.version>
     <caffeine.version>3.2.4</caffeine.version>
     <compiler-plugin.version>3.15.0</compiler-plugin.version>
-    <hibernate.version>7.3.3.Final</hibernate.version>
+    <hibernate.version>8.0.0.Beta1</hibernate.version>
     <java.version>25</java.version>
     <maven.compiler.release>25</maven.compiler.release>
-    <micronaut.core.version>5.0.0-M20</micronaut.core.version>
-    <micronaut.data.version>5.0.0-M5</micronaut.data.version>
-    <micronaut.serde.version>3.0.0-M6</micronaut.serde.version>
-    <micronaut.sql.version>7.0.1-M1</micronaut.sql.version>
-    <micronaut.test.version>5.0.0-M7</micronaut.test.version>
-    <micronaut.validation.version>5.0.0-M1</micronaut.validation.version>
+    <micronaut.core.version>5.1.2</micronaut.core.version>
+    <micronaut.data.version>5.0.4</micronaut.data.version>
+    <micronaut.serde.version>3.0.0</micronaut.serde.version>
+    <micronaut.sql.version>7.0.1</micronaut.sql.version>
+    <micronaut.test.version>5.0.1</micronaut.test.version>
+    <micronaut.validation.version>5.0.0</micronaut.validation.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
-    <surefire-plugin.version>3.5.6</surefire-plugin.version>
+    <surefire-plugin.version>3.6.0-M1</surefire-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -200,6 +200,11 @@
               <version>${micronaut.core.version}</version>
             </path>
             <path>
+              <groupId>io.micronaut</groupId>
+              <artifactId>micronaut-inject</artifactId>
+              <version>${micronaut.core.version}</version>
+            </path>
+            <path>
               <groupId>io.micronaut.data</groupId>
               <artifactId>micronaut-data-processor</artifactId>
               <version>${micronaut.data.version}</version>
@@ -214,16 +219,14 @@
               <artifactId>micronaut-validation-processor</artifactId>
               <version>${micronaut.validation.version}</version>
             </path>
-          </annotationProcessorPaths>
-
-          <fork>true</fork>
-          <annotationProcessorPaths>
             <path>
               <groupId>com.google.errorprone</groupId>
               <artifactId>error_prone_core</artifactId>
               <version>2.49.0</version>
             </path>
           </annotationProcessorPaths>
+
+          <fork>true</fork>
         </configuration>
       </plugin>
       <plugin>

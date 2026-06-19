@@ -16,7 +16,7 @@ CREATE TABLE store_fruit_prices (
 
 CREATE TABLE stores (
 		id bigint NOT NULL,
-		ADDress VARCHAR(255) NOT NULL,
+		address VARCHAR(255) NOT NULL,
 		city VARCHAR(255) NOT NULL,
 		country VARCHAR(255) NOT NULL,
 		currency VARCHAR(255) NOT NULL,

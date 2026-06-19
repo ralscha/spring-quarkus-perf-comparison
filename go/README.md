@@ -1,17 +1,17 @@
 # Go implementation
 
-This module provides a Go 1.26.1 implementation of the same fruit service exposed by the Quarkus 3 application.
+This module provides a Go 1.26.4 implementation of the same fruit service exposed by the JVM implementations.
 
 ## Requirements
 
-- Go 1.26.1
+- Go 1.26.4
 - PostgreSQL on `localhost:5432` with database `fruits` and credentials `fruits` / `fruits`
 
 You can start PostgreSQL from the repository root with:
 
 ```sh
-cd scripts
-./infra.sh -s
+cd run
+docker compose up -d postgres
 ```
 
 ## Run

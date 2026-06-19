@@ -9,18 +9,18 @@
   <description>Micronaut 4 example</description>
 
   <properties>
-    <assertj.version>3.27.7</assertj.version>
+    <assertj.version>4.0.0-M1</assertj.version>
     <caffeine.version>3.2.4</caffeine.version>
     <compiler-plugin.version>3.15.0</compiler-plugin.version>
     <java.version>25</java.version>
     <maven.compiler.release>25</maven.compiler.release>
     <micronaut.core.version>4.10.18</micronaut.core.version>
     <micronaut.data.version>4.14.3</micronaut.data.version>
-    <micronaut.platform.version>4.10.13</micronaut.platform.version>
+    <micronaut.platform.version>4.10.16</micronaut.platform.version>
     <micronaut.serde.version>2.16.2</micronaut.serde.version>
     <micronaut.validation.version>4.12.0</micronaut.validation.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
-    <surefire-plugin.version>3.5.6</surefire-plugin.version>
+    <surefire-plugin.version>3.6.0-M1</surefire-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -162,6 +162,11 @@
               <version>${micronaut.core.version}</version>
             </path>
             <path>
+              <groupId>io.micronaut</groupId>
+              <artifactId>micronaut-inject</artifactId>
+              <version>${micronaut.core.version}</version>
+            </path>
+            <path>
               <groupId>io.micronaut.data</groupId>
               <artifactId>micronaut-data-processor</artifactId>
               <version>${micronaut.data.version}</version>
@@ -176,16 +181,14 @@
               <artifactId>micronaut-validation-processor</artifactId>
               <version>${micronaut.validation.version}</version>
             </path>
-          </annotationProcessorPaths>
-
-          <fork>true</fork>
-          <annotationProcessorPaths>
             <path>
               <groupId>com.google.errorprone</groupId>
               <artifactId>error_prone_core</artifactId>
               <version>2.49.0</version>
             </path>
           </annotationProcessorPaths>
+
+          <fork>true</fork>
         </configuration>
       </plugin>
       <plugin>

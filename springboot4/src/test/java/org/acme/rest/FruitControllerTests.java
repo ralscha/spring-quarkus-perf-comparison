@@ -62,7 +62,6 @@ class FruitControllerTests {
         .andExpect(jsonPath("[0].id").value(1))
         .andExpect(jsonPath("[0].name").value("Apple"))
         .andExpect(jsonPath("[0].description").value("Hearty Fruit"))
-        .andExpect(jsonPath("[0].description").value("Hearty Fruit"))
         .andExpect(jsonPath("[0].storePrices[0].price").value(fruitStorePrice.getPrice().floatValue()))
         .andExpect(jsonPath("[0].storePrices[0].store.name").value(store.getName()))
         .andExpect(jsonPath("[0].storePrices[0].store.address.address").value(store.getAddress().address()))
