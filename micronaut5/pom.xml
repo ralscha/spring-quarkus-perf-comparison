@@ -17,10 +17,10 @@
     <maven.compiler.release>25</maven.compiler.release>
     <micronaut.core.version>5.1.2</micronaut.core.version>
     <micronaut.data.version>5.0.4</micronaut.data.version>
-    <micronaut.serde.version>3.0.0</micronaut.serde.version>
-    <micronaut.sql.version>7.0.1</micronaut.sql.version>
-    <micronaut.test.version>5.0.1</micronaut.test.version>
-    <micronaut.validation.version>5.0.0</micronaut.validation.version>
+    <micronaut.serde.version>3.1.0</micronaut.serde.version>
+    <micronaut.sql.version>7.1.0</micronaut.sql.version>
+    <micronaut.test.version>5.1.0</micronaut.test.version>
+    <micronaut.validation.version>5.1.0</micronaut.validation.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
     <surefire-plugin.version>3.6.0-M1</surefire-plugin.version>
   </properties>
