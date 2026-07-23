@@ -15,7 +15,7 @@
     <hibernate.version>8.0.0.Beta1</hibernate.version>
     <java.version>25</java.version>
     <maven.compiler.release>25</maven.compiler.release>
-    <micronaut.core.version>5.1.2</micronaut.core.version>
+    <micronaut.core.version>5.1.10</micronaut.core.version>
     <micronaut.data.version>5.0.4</micronaut.data.version>
     <micronaut.serde.version>3.1.0</micronaut.serde.version>
     <micronaut.sql.version>7.1.0</micronaut.sql.version>
