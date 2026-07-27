@@ -51,7 +51,7 @@ jobs:
           - { "name": "quarkus3-spring-compatibility", "dir": "quarkus3-spring-compatibility", "args": "" }
     name: "[jvm-build-test-java${{ matrix.java }}]: ${{ matrix.app.name }}"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Java ${{ matrix.java }}
         uses: actions/setup-java@v5
