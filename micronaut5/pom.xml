@@ -11,7 +11,7 @@
   <properties>
     <assertj.version>4.0.0-M1</assertj.version>
     <caffeine.version>3.2.4</caffeine.version>
-    <compiler-plugin.version>3.15.0</compiler-plugin.version>
+    <compiler-plugin.version>3.16.0</compiler-plugin.version>
     <hibernate.version>8.0.0.Beta1</hibernate.version>
     <java.version>25</java.version>
     <maven.compiler.release>25</maven.compiler.release>

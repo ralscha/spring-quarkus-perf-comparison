@@ -1,6 +1,6 @@
 module github.com/quarkusio/spring-quarkus-perf-comparison/go
 
-go 1.27.0
+go 1.27.1
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0

@@ -10,7 +10,7 @@
   <description>Quarkus 3 example</description>
   <properties>
     <assertj.version>4.0.0-M1</assertj.version>
-    <compiler-plugin.version>3.15.0</compiler-plugin.version>
+    <compiler-plugin.version>3.16.0</compiler-plugin.version>
     <java.version>25</java.version>
     <maven.compiler.release>25</maven.compiler.release>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
