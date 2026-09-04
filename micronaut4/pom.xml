@@ -20,7 +20,7 @@
     <micronaut.serde.version>2.16.2</micronaut.serde.version>
     <micronaut.validation.version>4.12.0</micronaut.validation.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
-    <surefire-plugin.version>3.6.0-M1</surefire-plugin.version>
+    <surefire-plugin.version>3.6.0</surefire-plugin.version>
   </properties>
 
   <dependencyManagement>
