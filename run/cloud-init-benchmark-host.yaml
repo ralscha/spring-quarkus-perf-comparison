@@ -190,6 +190,42 @@ write_files:
         cleanup_go_pgo
       }
 
+      prepare_spring_aot_cache() {
+        local workdir="${REPO_DIR}/springboot4"
+        local extracted_dir="${workdir}/target/springboot4-aot-cache"
+
+        cleanup_spring_aot_cache() {
+          docker compose -f "${COMPOSE_DIR}/docker-compose.yml" down >/dev/null 2>&1 || true
+        }
+
+        trap cleanup_spring_aot_cache RETURN
+
+        echo "[$(date --iso-8601=seconds)] Training the Spring Boot AOT cache"
+        rm -rf "${extracted_dir}"
+
+        pushd "${workdir}" >/dev/null
+        java -Djarmode=tools -jar target/springboot4.jar extract --destination "${extracted_dir}"
+        popd >/dev/null
+
+        docker compose -f "${COMPOSE_DIR}/docker-compose.yml" up -d --remove-orphans
+        wait_for_postgres
+
+        pushd "${extracted_dir}" >/dev/null
+        java -XX:AOTCacheOutput=app.aot \
+          -Dspring.aot.enabled=true \
+          -Dspring.context.exit=onRefresh \
+          -jar springboot4.jar
+        popd >/dev/null
+
+        if [ ! -s "${extracted_dir}/app.aot" ]; then
+          echo "Spring Boot AOT cache was not written to ${extracted_dir}/app.aot" >&2
+          return 1
+        fi
+
+        trap - RETURN
+        cleanup_spring_aot_cache
+      }
+
       echo "[$(date --iso-8601=seconds)] Updating Debian packages"
       apt-get update
       apt-get -y full-upgrade
@@ -250,10 +286,10 @@ write_files:
       EOF
       java -version
 
-      echo "[$(date --iso-8601=seconds)] Installing Go 1.26.1"
+      echo "[$(date --iso-8601=seconds)] Installing Go 1.27.1"
       rm -rf /usr/local/go
-      curl -fsSL https://go.dev/dl/go1.26.1.linux-amd64.tar.gz -o /tmp/go1.26.1.linux-amd64.tar.gz
-      tar -C /usr/local -xzf /tmp/go1.26.1.linux-amd64.tar.gz
+      curl -fsSL https://go.dev/dl/go1.27.1.linux-amd64.tar.gz -o /tmp/go1.27.1.linux-amd64.tar.gz
+      tar -C /usr/local -xzf /tmp/go1.27.1.linux-amd64.tar.gz
       install -d -m 0755 "${GOPATH}" "${GOMODCACHE}" "${GOCACHE}"
       ln -sf /usr/local/go/bin/go /usr/local/bin/go
       ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
@@ -275,6 +311,7 @@ write_files:
       echo "[$(date --iso-8601=seconds)] Preparing PostgreSQL Docker Compose assets"
       install -d "${BENCH_ROOT}" "${COMPOSE_DIR}" "${BOOTSTRAP_LOG_DIR}"
       cp "${REPO_DIR}/run/docker-compose.yml" "${COMPOSE_DIR}/docker-compose.yml"
+      cp "${REPO_DIR}/run/db.sql" "${COMPOSE_DIR}/db.sql"
       cp "${REPO_DIR}/run/stress-k6.js" "${BENCH_ROOT}/stress-k6.js"
 
       echo "[$(date --iso-8601=seconds)] Pulling Docker Compose images"
@@ -307,6 +344,8 @@ write_files:
       echo "[$(date --iso-8601=seconds)] Building springboot4 AOT JVM artifact"
       ./mvnw -B -DskipTests compile spring-boot:process-aot package
       popd
+
+      prepare_spring_aot_cache
 
       echo "[$(date --iso-8601=seconds)] Benchmark host bootstrap complete"
       echo "[$(date --iso-8601=seconds)] Rebooting before benchmark execution. Run ${RUNNER_SCRIPT} after the host comes back."
@@ -679,15 +718,15 @@ write_files:
         "go|${REPO_DIR}/go|env ${GO_BENCH_ENV} ./server"
         "go-pgo|${REPO_DIR}/go|env ${GO_BENCH_ENV} ./server_pgo"
         "micronaut4|${REPO_DIR}/micronaut4|java ${JVM_BENCH_OPTS} -jar target/micronaut4.jar"
-        "micronaut4-virtual|${REPO_DIR}/micronaut4|java ${JVM_BENCH_OPTS} -Dfruit.virtual-threads.enabled=true -jar target/micronaut4.jar"
+        "micronaut4-virtual|${REPO_DIR}/micronaut4|java ${JVM_BENCH_OPTS} --add-opens=java.base/java.lang=ALL-UNNAMED -Dmicronaut.executors.virtual.type=THREAD_PER_TASK -Dmicronaut.executors.virtual.virtual=true -Dmicronaut.server.thread-selection=blocking -Dmicronaut.netty.event-loops.default.loom-carrier=true -jar target/micronaut4.jar"
         "micronaut5|${REPO_DIR}/micronaut5|java ${JVM_BENCH_OPTS} -jar target/micronaut5.jar"
-        "micronaut5-virtual|${REPO_DIR}/micronaut5|java ${JVM_BENCH_OPTS} -Dfruit.virtual-threads.enabled=true -jar target/micronaut5.jar"
+        "micronaut5-virtual|${REPO_DIR}/micronaut5|java ${JVM_BENCH_OPTS} --add-opens=java.base/java.lang=ALL-UNNAMED -Dmicronaut.executors.virtual.type=THREAD_PER_TASK -Dmicronaut.executors.virtual.virtual=true -Dmicronaut.server.thread-selection=blocking -Dmicronaut.netty.event-loops.default.loom-carrier=true -jar target/micronaut5.jar"
         "quarkus3|${REPO_DIR}/quarkus3|java ${JVM_BENCH_OPTS} -jar target/quarkus-app/quarkus-run.jar"
         "quarkus3-spring-compatibility|${REPO_DIR}/quarkus3-spring-compatibility|java ${JVM_BENCH_OPTS} -jar target/quarkus-app/quarkus-run.jar"
         "quarkus3-virtual|${REPO_DIR}/quarkus3-virtual|java ${JVM_BENCH_OPTS} -jar target/quarkus-app/quarkus-run.jar"
         "springboot4|${REPO_DIR}/springboot4|java ${JVM_BENCH_OPTS} -jar target/app-jvm.jar"
         "springboot4-virtual|${REPO_DIR}/springboot4|java ${JVM_BENCH_OPTS} -Dspring.threads.virtual.enabled=true -jar target/app-jvm.jar"
-        "springboot4-aot|${REPO_DIR}/springboot4|java ${JVM_BENCH_OPTS} -Dspring.aot.enabled=true -jar target/springboot4.jar"
+        "springboot4-aot-cache|${REPO_DIR}/springboot4/target/springboot4-aot-cache|java ${JVM_BENCH_OPTS} -XX:AOTCache=app.aot -Dspring.aot.enabled=true -jar springboot4.jar"
       )
 
       framework_names=()

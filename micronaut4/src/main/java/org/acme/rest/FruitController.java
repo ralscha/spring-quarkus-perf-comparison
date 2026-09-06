@@ -7,6 +7,7 @@ import io.micronaut.http.annotation.Body;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
 import io.micronaut.http.annotation.Post;
+import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
 
 import jakarta.validation.Valid;
@@ -14,7 +15,7 @@ import jakarta.validation.Valid;
 import org.acme.dto.FruitDTO;
 import org.acme.service.FruitService;
 
-@ExecuteOn("fruit-executor")
+@ExecuteOn(TaskExecutors.BLOCKING)
 @Controller("/fruits")
 public class FruitController {
   private final FruitService fruitService;

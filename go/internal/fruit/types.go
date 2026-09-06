@@ -7,7 +7,7 @@ type AddressDTO struct {
 }
 
 type StoreDTO struct {
-	ID       int64       `json:"id,omitempty"`
+	ID       int64       `json:"id,omitzero"`
 	Name     string      `json:"name,omitempty"`
 	Currency string      `json:"currency,omitempty"`
 	Address  *AddressDTO `json:"address,omitempty"`
@@ -19,7 +19,7 @@ type StoreFruitPriceDTO struct {
 }
 
 type FruitDTO struct {
-	ID          int64                `json:"id,omitempty"`
+	ID          int64                `json:"id,omitzero"`
 	Name        string               `json:"name,omitempty"`
 	Description string               `json:"description,omitempty"`
 	StorePrices []StoreFruitPriceDTO `json:"storePrices,omitempty"`

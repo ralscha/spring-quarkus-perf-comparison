@@ -1,10 +1,12 @@
 # Go implementation
 
-This module provides a Go 1.26.4 implementation of the same fruit service exposed by the JVM implementations.
+This module provides a Go 1.27.1 implementation of the same fruit service exposed by the JVM implementations.
+
+Request and response bodies use `encoding/json/v2`. The stricter v2 decoder rejects duplicate object names, invalid UTF-8, and trailing JSON, while the optimized Go 1.27 implementation replaces the previous hand-written response encoder.
 
 ## Requirements
 
-- Go 1.26.4
+- Go 1.27.1
 - PostgreSQL on `localhost:5432` with database `fruits` and credentials `fruits` / `fruits`
 
 You can start PostgreSQL from the repository root with:

@@ -22,8 +22,6 @@ import io.restassured.http.ContentType;
 // The tests run in test mode, in the same process as the application under test.
 @QuarkusTest
 @TestMethodOrder(OrderAnnotation.class)
-//@VirtualThreadUnit
-//@ShouldNotPin
 public class FruitControllerEndToEndTest {
   private static final int DEFAULT_ORDER = 1;
 

@@ -2,7 +2,7 @@ package app
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -58,8 +58,7 @@ func (h *Handler) createFruit(writer http.ResponseWriter, request *http.Request)
 	defer request.Body.Close()
 
 	var payload fruit.FruitDTO
-	decoder := json.NewDecoder(request.Body)
-	if err := decoder.Decode(&payload); err != nil {
+	if err := json.UnmarshalRead(request.Body, &payload); err != nil {
 		writeJSON(writer, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
 		return
 	}
@@ -94,7 +93,7 @@ func (h *Handler) writeInternalError(writer http.ResponseWriter, request *http.R
 }
 
 func writeJSON(writer http.ResponseWriter, statusCode int, payload any) {
-	encodedPayload, err := marshalJSON(payload)
+	encodedPayload, err := json.Marshal(payload)
 	if err != nil {
 		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

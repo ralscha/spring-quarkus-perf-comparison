@@ -3,7 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"log/slog"
@@ -87,6 +87,16 @@ func TestListFruits(t *testing.T) {
 	}
 }
 
+func TestJSONV2PreservesZeroValueOmissions(t *testing.T) {
+	payload, err := json.Marshal(fruit.FruitDTO{Name: "Apple"})
+	if err != nil {
+		t.Fatalf("encode response: %v", err)
+	}
+	if string(payload) != `{"name":"Apple"}` {
+		t.Fatalf("unexpected payload: %s", payload)
+	}
+}
+
 func TestGetFruitNotFound(t *testing.T) {
 	repository := &stubRepository{}
 
@@ -129,6 +139,38 @@ func TestCreateFruitValidation(t *testing.T) {
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+}
+
+func TestCreateFruitRejectsDuplicateNames(t *testing.T) {
+	repository := &stubRepository{}
+
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/fruits", bytes.NewBufferString(`{"name":"Apple","name":"Pear"}`))
+
+	NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), repository).ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+	if repository.createResult != nil || repository.createdFruit.Name != "" {
+		t.Fatalf("expected invalid payload not to reach repository, got %+v", repository.createdFruit)
+	}
+}
+
+func TestCreateFruitRejectsTrailingJSON(t *testing.T) {
+	repository := &stubRepository{}
+
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/fruits", bytes.NewBufferString(`{"name":"Apple"}{"name":"Pear"}`))
+
+	NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), repository).ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+	if repository.createResult != nil || repository.createdFruit.Name != "" {
+		t.Fatalf("expected invalid payload not to reach repository, got %+v", repository.createdFruit)
 	}
 }
 

@@ -42,8 +42,10 @@ jobs:
           - '21'
           - '25'
         app:
-          - { "name": "springboot3", "dir": "springboot3", "args": "" }
-          - { "name": "springboot3-virtual", "dir": "springboot3", "args": "-Dspring.threads.virtual.enabled=true" }
+          - { "name": "micronaut4", "dir": "micronaut4", "args": "" }
+          - { "name": "micronaut4-virtual", "dir": "micronaut4", "args": "-Dmicronaut.executors.virtual.type=THREAD_PER_TASK -Dmicronaut.executors.virtual.virtual=true -Dmicronaut.server.thread-selection=blocking -Dmicronaut.netty.event-loops.default.loom-carrier=true -DargLine=--add-opens=java.base/java.lang=ALL-UNNAMED" }
+          - { "name": "micronaut5", "dir": "micronaut5", "args": "" }
+          - { "name": "micronaut5-virtual", "dir": "micronaut5", "args": "-Dmicronaut.executors.virtual.type=THREAD_PER_TASK -Dmicronaut.executors.virtual.virtual=true -Dmicronaut.server.thread-selection=blocking -Dmicronaut.netty.event-loops.default.loom-carrier=true -DargLine=--add-opens=java.base/java.lang=ALL-UNNAMED" }
           - { "name": "springboot4", "dir": "springboot4", "args": "" }
           - { "name": "springboot4-virtual", "dir": "springboot4", "args": "-Dspring.threads.virtual.enabled=true" }
           - { "name": "quarkus3", "dir": "quarkus3", "args": "" }
@@ -67,37 +69,23 @@ jobs:
             -Dmaven.compiler.release=${{ matrix.java }} \
             -Djava.version=${{ matrix.java }}
 
-      - name: Setup JBang
-        uses: jbangdev/setup-jbang@main
+  go-build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - go
+          - run/pulumi
+    name: "[go-build-test]: ${{ matrix.module }}"
+    steps:
+      - uses: actions/checkout@v7
 
-      - name: Validate simple scripts
-        run: |
-          case "${{ matrix.app.name }}" in
-            springboot3)
-            TARGET_DIR="${{ matrix.app.dir }}/target/springboot3.jar"
-            ;;
-            springboot3-virtual)
-            TARGET_DIR="${{ matrix.app.dir }}/target/springboot3.jar"
-            ;;
-            springboot4)
-            TARGET_DIR="${{ matrix.app.dir }}/target/springboot4.jar"
-            ;;
-            springboot4-virtual)
-            TARGET_DIR="${{ matrix.app.dir }}/target/springboot4.jar"
-            ;;
-            quarkus3)
-            TARGET_DIR="${{ matrix.app.dir }}/target/quarkus-app/quarkus-run.jar"
-            ;;
-            quarkus3-virtual)
-            TARGET_DIR="${{ matrix.app.dir }}/target/quarkus-app/quarkus-run.jar"
-            ;;
-            quarkus3-spring-compatibility)
-            TARGET_DIR="${{ matrix.app.dir }}/target/quarkus-app/quarkus-run.jar"
-            ;;
-            *)
-            echo "Unknown app: ${{ matrix.app.name }}"
-            exit 1
-            ;;
-          esac
-          scripts/stress.sh "$TARGET_DIR"
-          scripts/1strequest.sh "java -XX:ActiveProcessorCount=8 -Xms512m -Xmx512m -jar $TARGET_DIR" 5
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - name: Build and test
+        working-directory: ${{ matrix.module }}
+        run: go test ./...

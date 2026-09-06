@@ -14,11 +14,7 @@
     <compiler-plugin.version>3.16.0</compiler-plugin.version>
     <java.version>25</java.version>
     <maven.compiler.release>25</maven.compiler.release>
-    <micronaut.core.version>4.10.18</micronaut.core.version>
-    <micronaut.data.version>4.14.3</micronaut.data.version>
-    <micronaut.platform.version>4.10.16</micronaut.platform.version>
-    <micronaut.serde.version>2.16.2</micronaut.serde.version>
-    <micronaut.validation.version>4.12.0</micronaut.validation.version>
+    <micronaut.platform.version>4.10.17</micronaut.platform.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
     <surefire-plugin.version>3.6.0</surefire-plugin.version>
   </properties>
@@ -81,6 +77,11 @@
     <dependency>
       <groupId>org.yaml</groupId>
       <artifactId>snakeyaml</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
       <scope>runtime</scope>
     </dependency>
 
@@ -159,27 +160,22 @@
             <path>
               <groupId>io.micronaut</groupId>
               <artifactId>micronaut-inject-java</artifactId>
-              <version>${micronaut.core.version}</version>
             </path>
             <path>
               <groupId>io.micronaut</groupId>
               <artifactId>micronaut-inject</artifactId>
-              <version>${micronaut.core.version}</version>
             </path>
             <path>
               <groupId>io.micronaut.data</groupId>
               <artifactId>micronaut-data-processor</artifactId>
-              <version>${micronaut.data.version}</version>
             </path>
             <path>
               <groupId>io.micronaut.serde</groupId>
               <artifactId>micronaut-serde-processor</artifactId>
-              <version>${micronaut.serde.version}</version>
             </path>
             <path>
               <groupId>io.micronaut.validation</groupId>
               <artifactId>micronaut-validation-processor</artifactId>
-              <version>${micronaut.validation.version}</version>
             </path>
             <path>
               <groupId>com.google.errorprone</groupId>

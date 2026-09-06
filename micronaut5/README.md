@@ -9,5 +9,5 @@ To run in JVM mode:
 To compile for virtual thread mode:
 `./mvnw clean package`
 
-To run in virtual thread mode:
-`java -Dfruit.virtual-threads.enabled=true -jar target/micronaut5.jar`
+To run in virtual thread mode with Micronaut's event-loop carrier:
+`java --add-opens=java.base/java.lang=ALL-UNNAMED -Dmicronaut.executors.virtual.type=THREAD_PER_TASK -Dmicronaut.executors.virtual.virtual=true -Dmicronaut.server.thread-selection=blocking -Dmicronaut.netty.event-loops.default.loom-carrier=true -jar target/micronaut5.jar`

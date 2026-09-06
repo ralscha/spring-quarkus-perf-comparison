@@ -43,6 +43,17 @@ For fair comparisons, the examples are configured to keep these behaviors aligne
 - Hibernate examples use a batch fetch size of 16 where applicable
 - Production runs use the shared PostgreSQL database instead of per-app seed imports
 
+## Optimized Variants
+
+The benchmark-host automation also exercises each runtime's current performance path:
+
+- Go is measured as both a regular build and a workload-trained PGO build; it uses Go 1.27's `encoding/json/v2` API and faster allocator.
+- Micronaut 4 and 5 are measured with fixed platform threads and with the Netty event-loop Loom carrier.
+- Quarkus uses generated reflection-free REST/Jackson serializers, with a dedicated virtual-thread implementation.
+- Spring Boot is measured in JVM, virtual-thread, and Spring AOT plus Java AOT-cache modes.
+
+See the module READMEs for local commands and `run/cloud-init-benchmark-host.yaml` for the automated build, training, and launch configuration.
+
 ## Start PostgreSQL
 
 From the repository root:

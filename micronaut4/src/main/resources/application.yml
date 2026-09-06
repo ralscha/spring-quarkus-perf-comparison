@@ -1,15 +1,14 @@
 micronaut:
   application:
     name: micronaut4
+  executors:
+    virtual:
+      type: fixed
+      nThreads: 20
+      virtual: false
 
 jackson:
   serializationInclusion: NON_EMPTY
-
-fruit:
-  virtual-threads:
-    enabled: false
-  executor:
-    pool-size: 20
 
 datasources:
   default:

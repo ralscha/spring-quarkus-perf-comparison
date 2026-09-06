@@ -1,4 +1,6 @@
 spring:
+  main:
+    keep-alive: true
   datasource:
     username: fruits
     password: fruits
