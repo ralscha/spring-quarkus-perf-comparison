@@ -10,10 +10,10 @@
 
   <properties>
     <assertj.version>4.0.0-M1</assertj.version>
-    <caffeine.version>3.2.4</caffeine.version>
+    <caffeine.version>3.3.0</caffeine.version>
     <compiler-plugin.version>3.16.0</compiler-plugin.version>
     <!-- Enhancement metadata must match the Hibernate runtime managed by Micronaut Platform. -->
-    <hibernate.version>7.4.8.Final</hibernate.version>
+    <hibernate.version>7.4.10.Final</hibernate.version>
     <java.version>25</java.version>
     <maven.compiler.release>25</maven.compiler.release>
     <micronaut.platform.version>5.1.5</micronaut.platform.version>
