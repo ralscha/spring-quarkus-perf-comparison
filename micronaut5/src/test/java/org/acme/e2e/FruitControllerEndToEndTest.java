@@ -26,6 +26,15 @@ import io.restassured.http.ContentType;
 class FruitControllerEndToEndTest {
   private static final int DEFAULT_ORDER = 1;
 
+  @Test
+  @Order(DEFAULT_ORDER)
+  void duplicateFruitReturnsConflict() {
+    given().contentType(ContentType.JSON).body("""
+        {"name":"Apple"}
+        """)
+        .post("/fruits").then().statusCode(409);
+  }
+
   @Inject
   EmbeddedServer embeddedServer;
 

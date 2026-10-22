@@ -15,7 +15,7 @@ import (
 var ErrDuplicateFruit = errors.New("fruit already exists")
 
 type Repository interface {
-	ListFruits(ctx context.Context) ([]FruitDTO, error)
+	ListFruits(ctx context.Context, limit, offset int) ([]FruitDTO, error)
 	GetFruitByName(ctx context.Context, name string) (*FruitDTO, error)
 	CreateFruit(ctx context.Context, fruit FruitDTO) (*FruitDTO, error)
 	Close()
@@ -58,19 +58,20 @@ func (r *PostgresRepository) Close() {
 	r.pool.Close()
 }
 
-func (r *PostgresRepository) ListFruits(ctx context.Context) ([]FruitDTO, error) {
+func (r *PostgresRepository) ListFruits(ctx context.Context, limit, offset int) ([]FruitDTO, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, name, COALESCE(description, '')
 		FROM fruits
 		ORDER BY id
-	`)
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list fruits: %w", err)
 	}
 	defer rows.Close()
 
-	fruits := make([]FruitDTO, 0, 16)
-	fruitIDs := make([]int64, 0, 16)
+	fruits := make([]FruitDTO, 0, limit)
+	fruitIDs := make([]int64, 0, limit)
 	for rows.Next() {
 		var fruit FruitDTO
 		if err := rows.Scan(&fruit.ID, &fruit.Name, &fruit.Description); err != nil {
@@ -133,8 +134,8 @@ func (r *PostgresRepository) CreateFruit(ctx context.Context, fruit FruitDTO) (*
 	}
 
 	err := r.pool.QueryRow(ctx, `
-		INSERT INTO fruits(name, description)
-		VALUES ($1, NULLIF($2, ''))
+		INSERT INTO fruits(id, name, description)
+		VALUES (nextval('fruits_seq'), $1, NULLIF($2, ''))
 		RETURNING id
 	`, created.Name, created.Description).Scan(&created.ID)
 	if err != nil {
@@ -144,8 +145,6 @@ func (r *PostgresRepository) CreateFruit(ctx context.Context, fruit FruitDTO) (*
 		}
 		return nil, fmt.Errorf("create fruit: %w", err)
 	}
-
-	r.storeCache.invalidateAll()
 
 	return &created, nil
 }

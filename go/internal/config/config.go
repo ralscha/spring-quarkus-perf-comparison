@@ -2,7 +2,10 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,7 +56,14 @@ func Load() (Config, error) {
 	}
 
 	if err := k.Load(env.Provider("APP_", ".", func(value string) string {
-		return strings.ToLower(strings.ReplaceAll(value, "_", "."))
+		key := strings.ReplaceAll(strings.TrimPrefix(value, "APP_"), "_", ".")
+		// Preserve camelCase YAML keys so an override replaces the existing key.
+		for _, existing := range k.Keys() {
+			if strings.EqualFold(key, existing) {
+				return existing
+			}
+		}
+		return strings.ToLower(key)
 	}), nil); err != nil {
 		return Config{}, fmt.Errorf("load env overrides: %w", err)
 	}
@@ -97,7 +107,7 @@ func (c Config) validate() error {
 }
 
 func (c ServerConfig) Address() string {
-	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+	return net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
 }
 
 func (c ServerConfig) ReadTimeout() time.Duration {
@@ -121,15 +131,15 @@ func (c DatabaseConfig) MaxConnLifetime() time.Duration {
 }
 
 func (c DatabaseConfig) ConnString() string {
-	return fmt.Sprintf(
-		"host=%s port=%d dbname=%s user=%s password=%s sslmode=%s",
-		c.Host,
-		c.Port,
-		c.Name,
-		c.User,
-		c.Password,
-		c.SSLMode,
-	)
+	connection := url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(c.User, c.Password),
+		Host:   net.JoinHostPort(c.Host, strconv.Itoa(c.Port)),
+		Path:   "/" + c.Name,
+	}
+	query := url.Values{"sslmode": {c.SSLMode}, "connect_timeout": {"5"}}
+	connection.RawQuery = query.Encode()
+	return connection.String()
 }
 
 func (c DatabaseConfig) ApplyPoolConfig(poolConfig *pgxpool.Config) {

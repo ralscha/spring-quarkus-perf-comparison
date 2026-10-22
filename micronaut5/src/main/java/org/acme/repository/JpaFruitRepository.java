@@ -34,6 +34,22 @@ public class JpaFruitRepository implements FruitRepository {
 
   @Override
   @Transactional(Transactional.TxType.SUPPORTS)
+  public List<Fruit> listPage(int limit, int offset) {
+    // Keep the SQL limit on IDs, never on a collection fetch join.
+    var ids = entityManager.createQuery("select f.id from Fruit f order by f.id", Long.class)
+        .setFirstResult(offset).setMaxResults(limit).getResultList();
+    if (ids.isEmpty()) {
+      return List.of();
+    }
+    return entityManager.createQuery("""
+        select distinct f from Fruit f
+        left join fetch f.storePrices p left join fetch p.store s
+        where f.id in :ids order by f.id, s.id
+        """, Fruit.class).setParameter("ids", ids).getResultList();
+  }
+
+  @Override
+  @Transactional(Transactional.TxType.SUPPORTS)
   public Optional<Fruit> findByName(String name) {
     return this.entityManager.createQuery(
         """

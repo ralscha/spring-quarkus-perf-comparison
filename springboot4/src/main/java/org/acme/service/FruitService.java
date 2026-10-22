@@ -19,8 +19,8 @@ public class FruitService {
   }
 
   @Transactional(readOnly = true)
-  public List<FruitDTO> getAllFruits() {
-    return this.fruitRepository.findAll().stream()
+  public List<FruitDTO> getAllFruits(int limit, int offset) {
+    return this.fruitRepository.listPage(limit, offset).stream()
         .map(FruitMapper::map)
         .toList();
   }

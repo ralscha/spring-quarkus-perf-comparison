@@ -1,7 +1,11 @@
 spring:
+  threads:
+    virtual:
+      enabled: true
   main:
     keep-alive: true
   datasource:
+    connection-fetch: lazy
     username: fruits
     password: fruits
     url: jdbc:postgresql://localhost:5432/fruits
@@ -20,6 +24,8 @@ spring:
           region:
             factory_class: jcache
         default_batch_fetch_size: 16
+        query:
+          fail_on_pagination_over_collection_fetch: true
         connection:
           provider_disables_autocommit: true
 

@@ -1,11 +1,7 @@
 micronaut:
   application:
     name: micronaut5
-  executors:
-    virtual:
-      type: fixed
-      nThreads: 20
-      virtual: false
+  # BLOCKING selects the framework's virtual-thread executor on Java 27.
 
 jackson:
   serializationInclusion: NON_EMPTY
@@ -31,5 +27,7 @@ jpa:
           region:
             factory_class: jcache
         default_batch_fetch_size: 16
+        query:
+          fail_on_pagination_over_collection_fetch: true
         connection:
           provider_disables_autocommit: true

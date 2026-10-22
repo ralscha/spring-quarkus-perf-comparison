@@ -2,30 +2,19 @@ name: Build and test
 
 on:
   push:
-    paths-ignore:
-      - '**/*.md'
-      - '**/images/**'
-      - '.github/dependabot.yml'
-    branches:
-      - main
-      - ootb
+    branches: [main, ootb]
+    paths-ignore: ['**/*.md', '**/images/**', '.github/dependabot.yml']
   pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
-    branches:
-      - main
-      - ootb
-    paths-ignore:
-      - '**/*.md'
-      - '**/images/**'
-      - '.github/dependabot.yml'
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main, ootb]
+    paths-ignore: ['**/*.md', '**/images/**', '.github/dependabot.yml']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
-  group: "workflow = ${{ github.workflow }}, ref = ${{ github.event.ref }}, pr = ${{ github.event.pull_request.id }}"
+  group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
@@ -38,54 +27,113 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java:
-          - '21'
-          - '25'
-        app:
-          - { "name": "micronaut4", "dir": "micronaut4", "args": "" }
-          - { "name": "micronaut4-virtual", "dir": "micronaut4", "args": "-Dmicronaut.executors.virtual.type=THREAD_PER_TASK -Dmicronaut.executors.virtual.virtual=true -Dmicronaut.server.thread-selection=blocking -Dmicronaut.netty.event-loops.default.loom-carrier=true -DargLine=--add-opens=java.base/java.lang=ALL-UNNAMED" }
-          - { "name": "micronaut5", "dir": "micronaut5", "args": "" }
-          - { "name": "micronaut5-virtual", "dir": "micronaut5", "args": "-Dmicronaut.executors.virtual.type=THREAD_PER_TASK -Dmicronaut.executors.virtual.virtual=true -Dmicronaut.server.thread-selection=blocking -Dmicronaut.netty.event-loops.default.loom-carrier=true -DargLine=--add-opens=java.base/java.lang=ALL-UNNAMED" }
-          - { "name": "springboot4", "dir": "springboot4", "args": "" }
-          - { "name": "springboot4-virtual", "dir": "springboot4", "args": "-Dspring.threads.virtual.enabled=true" }
-          - { "name": "quarkus3", "dir": "quarkus3", "args": "" }
-          - { "name": "quarkus3-virtual", "dir": "quarkus3-virtual", "args": "" }
-          - { "name": "quarkus3-spring-compatibility", "dir": "quarkus3-spring-compatibility", "args": "" }
-    name: "[jvm-build-test-java${{ matrix.java }}]: ${{ matrix.app.name }}"
+        java: ['27']
+        app: [micronaut5, quarkus3, springboot4]
+    name: "${{ matrix.app }} / Java ${{ matrix.java }}"
     steps:
       - uses: actions/checkout@v7
-
-      - name: Set up Java ${{ matrix.java }}
-        uses: actions/setup-java@v6
+      - uses: actions/setup-java@v6
         with:
           java-version: ${{ matrix.java }}
           distribution: temurin
           cache: maven
-
       - name: Build and test
-        working-directory: ${{ matrix.app.dir }}
-        run: |
-          ./mvnw -B clean verify ${{ matrix.app.args }} \
-            -Dmaven.compiler.release=${{ matrix.java }} \
-            -Djava.version=${{ matrix.java }}
+        working-directory: ${{ matrix.app }}
+        run: ./mvnw -B clean verify
 
   go-build-test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        module:
-          - go
-          - run/pulumi
-    name: "[go-build-test]: ${{ matrix.module }}"
+        module: [go, run/pulumi]
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_DB: fruits
+          POSTGRES_USER: fruits
+          POSTGRES_PASSWORD: fruits
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U fruits -d fruits"
+          --health-interval 2s --health-timeout 5s --health-retries 30
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.3'
           cache-dependency-path: ${{ matrix.module }}/go.sum
-
-      - name: Build and test
+      - name: Build and test, including PostgreSQL repository tests
         working-directory: ${{ matrix.module }}
-        run: go test ./...
+        env:
+          FRUITS_TEST_DATABASE_URL: postgres://fruits:fruits@localhost:5432/fruits?sslmode=disable
+        run: go test -race ./...
+
+  rust-build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_DB: fruits
+          POSTGRES_USER: fruits
+          POSTGRES_PASSWORD: fruits
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U fruits -d fruits"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the repository's pinned stable toolchain
+        working-directory: rust
+        run: rustup show
+      - name: Format, lint, test and build
+        working-directory: rust
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --locked
+          cargo build --release --locked
+      - name: PostgreSQL HTTP contract
+        working-directory: rust
+        env:
+          TEST_DATABASE_URL: postgres://fruits:fruits@localhost:5432/fruits?sslmode=disable
+        run: cargo test --locked postgres_http_contract -- --ignored
+
+  benchmark-runner-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.3'
+          cache-dependency-path: go/go.sum
+      - name: Workload, result aggregation and shell validation
+        run: |
+          node --test run/workload.test.mjs
+          python3 -m unittest discover -s run -p 'test_*.py'
+          bash -n run/run-benchmarks.sh
+          bash -n run/bootstrap-benchmark-host.sh
+          docker compose -f run/docker-compose.yml config --quiet
+      - name: Verify live HTTP workload against PostgreSQL
+        run: |
+          set -euo pipefail
+          docker compose -f run/docker-compose.yml up -d --wait --wait-timeout 180
+          (cd go && go build -pgo=off -o server .)
+          (cd go && exec ./server) > /tmp/fruits-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; docker compose -f run/docker-compose.yml down --volumes' EXIT
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --max-time 2 -fsS http://127.0.0.1:8080/fruits/Apple >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          # Functional smoke thresholds tolerate shared CI host noise; dedicated runs use real SLOs.
+          docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD/run:/scripts:ro" -v "$RUNNER_TEMP:/results" \
+            -e K6_RATE=10 -e K6_PROFILE=steady -e K6_DURATION_SECONDS=20 \
+            -e K6_WARMUP_RAMP_SECONDS=1 -e K6_WARMUP_HOLD_SECONDS=1 \
+            -e K6_P95_MS=3000 -e K6_P99_MS=5000 -e K6_PREALLOCATED_VUS=50 \
+            -e K6_RUN_ID=ci -e K6_RESULT_FILE=/results/k6-result.json \
+            grafana/k6:2.3.0 run --no-usage-report /scripts/stress-k6.js

@@ -34,6 +34,30 @@ class FruitControllerTests {
   @Inject
   FruitRepository fruitRepository;
 
+  @Test
+  void rejectsOversizedFields() {
+    given().contentType(ContentType.JSON).body("""
+        {"name":"%s"}
+        """.formatted("a".repeat(256)))
+        .post("/fruits").then().statusCode(400);
+    Mockito.verifyNoInteractions(fruitRepository);
+  }
+
+  @Test
+  void rejectsInvalidPagination() {
+    for (String query : List.of("limit=0", "limit=101", "offset=-1", "limit=invalid")) {
+      get("/fruits?" + query).then().statusCode(400);
+    }
+    Mockito.verifyNoInteractions(fruitRepository);
+  }
+
+  @Test
+  void passesPaginationToRepository() {
+    Mockito.when(fruitRepository.listPage(2, 3)).thenReturn(List.of());
+    get("/fruits?limit=2&offset=3").then().statusCode(200);
+    Mockito.verify(fruitRepository).listPage(2, 3);
+  }
+
   @BeforeEach
   void setUp() {
     RestAssured.port = this.embeddedServer.getPort();
@@ -59,7 +83,7 @@ class FruitControllerTests {
     var fruitStorePrice = fruit.getStorePrices().getFirst();
     var store = fruitStorePrice.getStore();
 
-    Mockito.when(this.fruitRepository.listAll())
+    Mockito.when(this.fruitRepository.listPage(50, 0))
         .thenReturn(List.of(fruit));
 
     get("/fruits").then()
@@ -76,7 +100,7 @@ class FruitControllerTests {
         .body("[0].storePrices[0].store.address.country", is(store.getAddress().country()))
         .body("[0].storePrices[0].store.currency", is(store.getCurrency()));
 
-    Mockito.verify(this.fruitRepository).listAll();
+    Mockito.verify(this.fruitRepository).listPage(50, 0);
     Mockito.verifyNoMoreInteractions(this.fruitRepository);
   }
 

@@ -8,6 +8,8 @@ import org.acme.domain.Fruit;
 public interface FruitRepository {
   List<Fruit> listAll();
 
+  List<Fruit> listPage(int limit, int offset);
+
   Optional<Fruit> findByName(String name);
 
   void persist(Fruit fruit);

@@ -18,12 +18,14 @@ public class FruitService {
     this.fruitRepository = fruitRepository;
   }
 
-  public List<FruitDTO> getAllFruits() {
-    return this.fruitRepository.listAll().stream()
+  @Transactional
+  public List<FruitDTO> getAllFruits(int limit, int offset) {
+    return this.fruitRepository.listPage(limit, offset).stream()
         .map(FruitMapper::map)
         .toList();
   }
 
+  @Transactional
   public Optional<FruitDTO> getFruitByName(String name) {
     return this.fruitRepository.findByName(name)
         .map(FruitMapper::map);

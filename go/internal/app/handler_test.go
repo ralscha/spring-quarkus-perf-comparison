@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/quarkusio/spring-quarkus-perf-comparison/go/internal/fruit"
@@ -18,6 +19,8 @@ type stubRepository struct {
 	listResult   []fruit.FruitDTO
 	listErr      error
 	listCalls    int
+	listLimit    int
+	listOffset   int
 	getResult    *fruit.FruitDTO
 	getErr       error
 	getCalls     int
@@ -26,8 +29,9 @@ type stubRepository struct {
 	createdFruit fruit.FruitDTO
 }
 
-func (s *stubRepository) ListFruits(context.Context) ([]fruit.FruitDTO, error) {
+func (s *stubRepository) ListFruits(_ context.Context, limit, offset int) ([]fruit.FruitDTO, error) {
 	s.listCalls++
+	s.listLimit, s.listOffset = limit, offset
 	return s.listResult, s.listErr
 }
 
@@ -134,6 +138,7 @@ func TestCreateFruitValidation(t *testing.T) {
 
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/fruits", bytes.NewBufferString(`{"name":"   "}`))
+	request.Header.Set("Content-Type", "application/json")
 
 	NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), repository).ServeHTTP(response, request)
 
@@ -147,6 +152,7 @@ func TestCreateFruitRejectsDuplicateNames(t *testing.T) {
 
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/fruits", bytes.NewBufferString(`{"name":"Apple","name":"Pear"}`))
+	request.Header.Set("Content-Type", "application/json")
 
 	NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), repository).ServeHTTP(response, request)
 
@@ -163,6 +169,7 @@ func TestCreateFruitRejectsTrailingJSON(t *testing.T) {
 
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/fruits", bytes.NewBufferString(`{"name":"Apple"}{"name":"Pear"}`))
+	request.Header.Set("Content-Type", "application/json")
 
 	NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), repository).ServeHTTP(response, request)
 
@@ -179,6 +186,7 @@ func TestCreateFruitDuplicate(t *testing.T) {
 
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/fruits", bytes.NewBufferString(`{"name":"Apple"}`))
+	request.Header.Set("Content-Type", "application/json")
 
 	NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), repository).ServeHTTP(response, request)
 
@@ -208,8 +216,8 @@ func TestListFruitsCanceledRequest(t *testing.T) {
 
 	NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), repository).ServeHTTP(response, request)
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	if response.Code != http.StatusRequestTimeout {
+		t.Fatalf("expected status %d, got %d", http.StatusRequestTimeout, response.Code)
 	}
 	if response.Body.Len() != 0 {
 		t.Fatalf("expected empty response body, got %q", response.Body.String())
@@ -224,10 +232,83 @@ func TestListFruitsDeadlineExceeded(t *testing.T) {
 
 	NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), repository).ServeHTTP(response, request)
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	if response.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected status %d, got %d", http.StatusGatewayTimeout, response.Code)
 	}
-	if response.Body.Len() != 0 {
-		t.Fatalf("expected empty response body, got %q", response.Body.String())
+	if !strings.Contains(response.Body.String(), "request timed out") {
+		t.Fatalf("expected timeout response, got %q", response.Body.String())
+	}
+}
+
+func TestListPagination(t *testing.T) {
+	for _, test := range []struct {
+		query                 string
+		status, limit, offset int
+	}{
+		{"", 200, 50, 0},
+		{"?limit=20&offset=30", 200, 20, 30},
+		{"?limit=0", 400, 0, 0},
+		{"?limit=101", 400, 0, 0},
+		{"?offset=-1", 400, 0, 0},
+		{"?offset=2147483648", 400, 0, 0},
+		{"?limit=abc", 400, 0, 0},
+		{"?limit=2&limit=3", 400, 0, 0},
+	} {
+		t.Run(test.query, func(t *testing.T) {
+			repository := &stubRepository{listResult: []fruit.FruitDTO{}}
+			response := httptest.NewRecorder()
+			NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), repository).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/fruits"+test.query, nil))
+			if response.Code != test.status || repository.listLimit != test.limit || repository.listOffset != test.offset {
+				t.Fatalf("status=%d pagination=%d,%d", response.Code, repository.listLimit, repository.listOffset)
+			}
+		})
+	}
+}
+
+func TestCreateBodyLimit(t *testing.T) {
+	repository := &stubRepository{}
+	response := httptest.NewRecorder()
+	body := `{"name":"Apple","description":"` + strings.Repeat("x", 65536) + `"}`
+	request := httptest.NewRequest(http.MethodPost, "/fruits", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), repository).ServeHTTP(response, request)
+	if response.Code != http.StatusRequestEntityTooLarge || repository.createdFruit.Name != "" {
+		t.Fatalf("oversize body status=%d created=%+v", response.Code, repository.createdFruit)
+	}
+}
+
+func TestCreateFruitContentType(t *testing.T) {
+	for _, test := range []struct {
+		name, contentType string
+		status            int
+	}{
+		{"json", "application/json", http.StatusOK},
+		{"charset", "application/json; charset=utf-8", http.StatusOK},
+		{"case insensitive", "Application/JSON", http.StatusOK},
+		{"missing", "", http.StatusUnsupportedMediaType},
+		{"text", "text/plain", http.StatusUnsupportedMediaType},
+		{"xml", "application/xml", http.StatusUnsupportedMediaType},
+		{"different JSON media type", "application/problem+json", http.StatusUnsupportedMediaType},
+		{"malformed parameter", "application/json; charset", http.StatusUnsupportedMediaType},
+		{"multiple media types", "application/json, text/plain", http.StatusUnsupportedMediaType},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repository := &stubRepository{createResult: &fruit.FruitDTO{ID: 11, Name: "Grapefruit"}}
+			request := httptest.NewRequest(http.MethodPost, "/fruits", strings.NewReader(`{"name":"Grapefruit"}`))
+			if test.contentType != "" {
+				request.Header.Set("Content-Type", test.contentType)
+			}
+			response := httptest.NewRecorder()
+			NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), repository).ServeHTTP(response, request)
+			if response.Code != test.status {
+				t.Fatalf("expected status %d, got %d", test.status, response.Code)
+			}
+			if test.status == http.StatusOK && repository.createdFruit.Name != "Grapefruit" {
+				t.Fatal("accepted JSON did not reach the repository")
+			}
+			if test.status != http.StatusOK && repository.createdFruit.Name != "" {
+				t.Fatal("unsupported media type reached the repository")
+			}
+		})
 	}
 }

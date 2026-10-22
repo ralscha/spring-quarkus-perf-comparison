@@ -21,3 +21,7 @@ buildNumber.properties
 server
 server_pgo
 server.pprof
+/.validation/
+/run/results/
+__pycache__/
+k6-result.json

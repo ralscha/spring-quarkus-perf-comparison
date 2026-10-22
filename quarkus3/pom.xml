@@ -9,13 +9,13 @@
   <name>quarkus3</name>
   <description>Quarkus 3 example</description>
   <properties>
-    <assertj.version>4.0.0-M1</assertj.version>
+    <assertj.version>3.27.7</assertj.version>
     <compiler-plugin.version>3.16.0</compiler-plugin.version>
-    <java.version>25</java.version>
-    <maven.compiler.release>25</maven.compiler.release>
+    <java.version>27</java.version>
+    <maven.compiler.release>27</maven.compiler.release>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-    <quarkus.platform.version>3.39.2</quarkus.platform.version>
+    <quarkus.platform.version>3.40.1.1</quarkus.platform.version>
     <surefire-plugin.version>3.6.0</surefire-plugin.version>
   </properties>
   <dependencyManagement>
@@ -130,7 +130,7 @@
             <path>
               <groupId>com.google.errorprone</groupId>
               <artifactId>error_prone_core</artifactId>
-              <version>2.49.0</version>
+              <version>2.51.0</version>
             </path>
           </annotationProcessorPaths>
         </configuration>

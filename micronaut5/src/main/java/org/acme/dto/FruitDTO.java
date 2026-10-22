@@ -6,12 +6,13 @@ import java.util.List;
 import io.micronaut.serde.annotation.Serdeable;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 @Serdeable
 public record FruitDTO(
     Long id,
-    @NotBlank(message = "Name is mandatory") String name,
-    String description,
+    @NotBlank(message = "Name is mandatory") @Size(max = 255) String name,
+    @Size(max = 255) String description,
     List<StoreFruitPriceDTO> storePrices
 ) {
   public FruitDTO {

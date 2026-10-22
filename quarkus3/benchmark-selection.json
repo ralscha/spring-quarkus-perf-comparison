@@ -1,0 +1,496 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-22",
+  "selection_status": "provisional",
+  "selected_dispatch": "platform",
+  "retained_project": "quarkus3",
+  "selection": {
+    "intended_rule": "Lowest median measured p95 across three matched repetitions with zero HTTP/check failures and zero dropped arrivals; default SLO p95 <300 ms and p99 <1000 ms.",
+    "outcome": "No repeated reliable fastest or capacity ranking was established on this busy host. The platform variant had the only completely passing Java25 run; failed runs are excluded from capacity claims.",
+    "provisional_rationale": "At the supported Java 25 baseline and 10 offered RPS, platform dispatch passed the complete mixed warmup and measurement with zero errors/drops, p95 61.27 ms and p99 232.12 ms. Virtual dispatch had zero measured errors/drops but p95 373.91 ms and 17.85% warmup errors, so did not qualify. Platform dispatch is retained as the provisional choice. The earlier overloaded 300 RPS pair favored virtual dispatch, but both runs failed and are not a capacity basis.",
+    "next_validation": "Run the shared benchmark runner on an idle Linux host using the Java 27 baseline and three or more repetitions before treating this choice as a capacity result. The recorded source hashes and measurements predate the Java 27 build target."
+  },
+  "environment": {
+    "os": "Windows AMD64",
+    "cpu": "Intel Core i7-3610QM @ 2.30GHz",
+    "host_physical_cores": 4,
+    "host_logical_processors": 8,
+    "java_process_affinity_mask": 15,
+    "java_active_processor_count": 4,
+    "java_heap_initial_mib": 256,
+    "java_heap_max_mib": 256,
+    "bytecode_release": 25,
+    "quarkus": "3.40.1.1",
+    "maven": "3.10.0",
+    "postgresql": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "k6": "2.3.0 (Go 1.26.8)",
+    "database": "Dedicated quarkus_ab database in a local Docker container, accessed through port 55432.",
+    "jdbc_pool_max": 20,
+    "schema_reset_before_each_run": true,
+    "seed": {
+      "fruits": 1000,
+      "stores": 100,
+      "prices_per_fruit": 10
+    },
+    "page_size": 50,
+    "measurement_seconds_per_run": 30,
+    "load_profile": "steady open arrival rate; 70% details, 20% bounded pages, 5% expected 404s, 5% unique creates",
+    "source_difference_between_variants": "Only @io.smallrye.common.annotation.RunOnVirtualThread on FruitController.",
+    "candidate_setup": "The updated pom.xml and complete src tree were copied from the platform candidate to the virtual candidate before both clean package builds. Only the controller dispatch annotation was then added. Both used the same artifact name, Java release, resources, dependencies and compiler settings; both passed the same 14 tests. The retained candidate additionally passed four packaged integration tests. Controller hashes below were captured before removal; these are source hashes, not binary reproducibility claims.",
+    "repository_base_commit": "c35dc7cddcadda12ba5095ffc28bb129c97d7abc"
+  },
+  "diagnostics": {
+    "orphans_before_corrected_pilot": "No Java/k6 process or prior application database session remained.",
+    "postgresql_idle_snapshot": "0% CPU, approximately 64 MiB memory, no OOM, CPU throttling, deadlocks or temporary spills; ample disk.",
+    "windows_memory_snapshot": "Approximately 1.25 GiB free of 24 GiB initially; a later sample reported 2902 MiB available, 3111 page reads/second and 81% committed memory.",
+    "host_contention": "Unrelated user applications and Go compilation from another workspace remained active; no unrelated processes were stopped.",
+    "after_java25_pair": "5869 MiB available, 19 page reads/second, 79% committed memory; no active go/compile/link process found. Changing contention prevents attributing the difference to Java 27 alone.",
+    "failed_jdk27_platform_live_snapshot": "Most used JDBC connections waited for socket reads while PostgreSQL sessions were idle-in-transaction waiting for their clients; no PostgreSQL lock wait. Scheduling/transport stalls are a hypothesis, not a proven root cause.",
+    "cold_paths": "Corrected pilots primed detail, page and create endpoints and used the same complete workload mix during warmup."
+  },
+  "interrupted_attempts": [
+    "300 RPS series stopped before completing remaining repetitions after both initial variants failed.",
+    "50 RPS series stopped after four completed or setup-failed runs.",
+    "An initial 10 RPS attempt was interrupted before measured results to wait for the corrected mixed warmup.",
+    "The remaining four Java25 repetitions were not run because the virtual pilot failed; no three-repetition median ranking is claimed."
+  ],
+  "input_sha256": {
+    "workload_scope": "These workload hashes describe the corrected mixed-warmup pilots; the earlier exploratory runs used read-only warmup.",
+    "workload_mjs": "a1cdc5f4b16cdc569bef578963e14486c76683f73b95708048383d6f60b31db5",
+    "stress_k6_js": "8d0d035b6e2bf2d496d2b06fc7deda6d80bf6a1a1a860f8f3e8feb855cc49ec0",
+    "seed_sql": "20140ae9555669fee042eb66d96e2789fb4f854485489b75f4174bbcc63bea1b",
+    "pom_xml": "bf5bf11bdd7500d8f0e1274bc7bbccdd7d00b4a879ad4664653cc8f2970368b0",
+    "platform_controller": "98968fa8bc659de98197e4ad6cc1b11a8348cbd63775d1c7fc3809d5b83ed5f6",
+    "virtual_controller": "7ed152a02f315e0ea026328922f8423208ce277c7b4cd816adb981c8eb04d8ef"
+  },
+  "experiments": [
+    {
+      "id": "comparison-300",
+      "java": "27+35-2325",
+      "warmup": "30 seconds, reads only",
+      "configuration": {
+        "baseUrl": "http://127.0.0.1:18080",
+        "rate": 300,
+        "duration": 30,
+        "profile": "steady",
+        "burst": 2,
+        "stages": [
+          {
+            "duration": "30s",
+            "target": 300
+          }
+        ],
+        "offered": 9000,
+        "maxCreates": 10000,
+        "timeout": 2,
+        "grace": 3,
+        "vus": 128,
+        "warmupRamp": 5,
+        "warmupHold": 25,
+        "seed": 42,
+        "p95": 300,
+        "p99": 1000,
+        "errorRate": 0.01
+      },
+      "caveats": [
+        "Overloaded; 2-second request timeout; series stopped after both variants failed."
+      ],
+      "runs": [
+        {
+          "schema_version": 1,
+          "passed": false,
+          "failures": [
+            "http_req_duration{scenario:measured}: p(99)<1000",
+            "http_req_duration{scenario:measured}: p(95)<300",
+            "http_req_failed{scenario:measured}: rate<0.01",
+            "dropped_iterations{scenario:measured}: count==0",
+            "checks{scenario:measured}: rate>=0.999"
+          ],
+          "complete": true,
+          "requests": 3544,
+          "offered_requests": 9000,
+          "achieved_rps": 118.13333333333334,
+          "dropped_iterations": 5446,
+          "error_rate": 0.32562076749435664,
+          "check_failure_rate": 0.32562076749435664,
+          "p50_ms": 879.5518999999999,
+          "p95_ms": 2048.851,
+          "p99_ms": 2242.4685609999997,
+          "run_id": "q-platform-1",
+          "variant": "platform",
+          "sequence": 1,
+          "raw_result_local_path": "quarkus3/target/comparison-300/platform-1.json",
+          "passes_individual_run_checks": false
+        },
+        {
+          "schema_version": 1,
+          "passed": false,
+          "failures": [
+            "http_req_failed{scenario:measured}: rate<0.01",
+            "http_req_duration{scenario:measured}: p(95)<300",
+            "http_req_duration{scenario:measured}: p(99)<1000",
+            "checks{scenario:measured}: rate>=0.999",
+            "dropped_iterations{scenario:measured}: count==0"
+          ],
+          "complete": true,
+          "requests": 7200,
+          "offered_requests": 9000,
+          "achieved_rps": 240,
+          "dropped_iterations": 1797,
+          "error_rate": 0.022222222222222223,
+          "check_failure_rate": 0.022222222222222254,
+          "p50_ms": 230.86825,
+          "p95_ms": 880.6884249999996,
+          "p99_ms": 2002.2677,
+          "run_id": "q-virtual-2",
+          "variant": "virtual",
+          "sequence": 2,
+          "raw_result_local_path": "quarkus3/target/comparison-300/virtual-2.json",
+          "passes_individual_run_checks": false
+        }
+      ]
+    },
+    {
+      "id": "comparison-50",
+      "java": "27+35-2325",
+      "warmup": "30 seconds, reads only",
+      "configuration": {
+        "baseUrl": "http://127.0.0.1:18080",
+        "rate": 50,
+        "duration": 30,
+        "profile": "steady",
+        "burst": 2,
+        "stages": [
+          {
+            "duration": "30s",
+            "target": 50
+          }
+        ],
+        "offered": 1500,
+        "maxCreates": 10000,
+        "timeout": 2,
+        "grace": 3,
+        "vus": 128,
+        "warmupRamp": 5,
+        "warmupHold": 25,
+        "seed": 42,
+        "p95": 300,
+        "p99": 1000,
+        "errorRate": 0.01
+      },
+      "caveats": [
+        "One virtual run failed preflight; request timeouts and host stalls invalidated subsequent measurements."
+      ],
+      "runs": [
+        {
+          "schema_version": 1,
+          "passed": false,
+          "failures": [
+            "http_req_duration{scenario:measured}: p(99)<1000",
+            "http_req_duration{scenario:measured}: p(95)<300"
+          ],
+          "complete": true,
+          "requests": 1499,
+          "offered_requests": 1500,
+          "achieved_rps": 49.96666666666667,
+          "dropped_iterations": 0,
+          "error_rate": 0,
+          "check_failure_rate": 0,
+          "p50_ms": 14.0037,
+          "p95_ms": 818.8093399999999,
+          "p99_ms": 1417.5489579999996,
+          "run_id": "q-platform-1",
+          "variant": "platform",
+          "sequence": 1,
+          "raw_result_local_path": "quarkus3/target/comparison-50/platform-1.json",
+          "passes_individual_run_checks": false
+        },
+        {
+          "schema_version": 1,
+          "passed": false,
+          "failures": [
+            "measured_completed: count>0",
+            "measured_started: count>0"
+          ],
+          "complete": false,
+          "requests": 0,
+          "offered_requests": 1500,
+          "achieved_rps": 0,
+          "dropped_iterations": 0,
+          "error_rate": 0,
+          "check_failure_rate": 1,
+          "p50_ms": 0,
+          "p95_ms": 0,
+          "p99_ms": 0,
+          "run_id": "q-virtual-2",
+          "variant": "virtual",
+          "sequence": 2,
+          "raw_result_local_path": "quarkus3/target/comparison-50/virtual-2.json",
+          "passes_individual_run_checks": false
+        },
+        {
+          "schema_version": 1,
+          "passed": false,
+          "failures": [
+            "checks{scenario:measured}: rate>=0.999",
+            "http_req_failed{scenario:measured}: rate<0.01",
+            "http_req_duration{scenario:measured}: p(95)<300",
+            "http_req_duration{scenario:measured}: p(99)<1000"
+          ],
+          "complete": true,
+          "requests": 1498,
+          "offered_requests": 1500,
+          "achieved_rps": 49.93333333333333,
+          "dropped_iterations": 0,
+          "error_rate": 0.9272363150867824,
+          "check_failure_rate": 0.9272363150867824,
+          "p50_ms": 2004.07405,
+          "p95_ms": 2114.90216,
+          "p99_ms": 2198.769253,
+          "run_id": "q-virtual-3",
+          "variant": "virtual",
+          "sequence": 3,
+          "raw_result_local_path": "quarkus3/target/comparison-50/virtual-3.json",
+          "passes_individual_run_checks": false
+        },
+        {
+          "schema_version": 1,
+          "passed": false,
+          "failures": [
+            "http_req_duration{scenario:measured}: p(95)<300",
+            "http_req_duration{scenario:measured}: p(99)<1000",
+            "http_req_failed{scenario:measured}: rate<0.01",
+            "checks{scenario:measured}: rate>=0.999"
+          ],
+          "complete": true,
+          "requests": 1499,
+          "offered_requests": 1500,
+          "achieved_rps": 49.96666666666667,
+          "dropped_iterations": 0,
+          "error_rate": 0.5156771180787192,
+          "check_failure_rate": 0.5156771180787192,
+          "p50_ms": 1992.383,
+          "p95_ms": 2044.14526,
+          "p99_ms": 2098.00202,
+          "run_id": "q-platform-4",
+          "variant": "platform",
+          "sequence": 4,
+          "raw_result_local_path": "quarkus3/target/comparison-50/platform-4.json",
+          "passes_individual_run_checks": false
+        }
+      ]
+    },
+    {
+      "id": "comparison-10-mixed",
+      "java": "27+35-2325",
+      "warmup": "60 seconds, same 70/20/5/5 read/write mix as measurement",
+      "configuration": {
+        "baseUrl": "http://127.0.0.1:18080",
+        "rate": 10,
+        "duration": 30,
+        "profile": "steady",
+        "burst": 2,
+        "stages": [
+          {
+            "duration": "30s",
+            "target": 10
+          }
+        ],
+        "offered": 300,
+        "maxCreates": 10000,
+        "maximumCreates": 54,
+        "timeout": 5,
+        "grace": 6,
+        "vus": 128,
+        "warmupRamp": 5,
+        "warmupHold": 55,
+        "warmupStartRate": 1,
+        "warmupOffered": 577.5,
+        "seed": 42,
+        "p95": 300,
+        "p99": 1000,
+        "errorRate": 0.01
+      },
+      "caveats": [
+        "Single-CPU repository Go tests/vet overlapped part of pilot.",
+        "A JVM thread dump and database snapshot were captured during the failed platform run."
+      ],
+      "runs": [
+        {
+          "schema_version": 1,
+          "passed": false,
+          "failures": [
+            "http_req_failed{scenario:warmup}: rate==0",
+            "checks{scenario:measured}: rate>=0.999",
+            "http_req_duration{scenario:measured}: p(95)<300",
+            "http_req_duration{scenario:measured}: p(99)<1000",
+            "checks{scenario:warmup}: rate==1",
+            "http_req_failed{scenario:measured}: rate<0.01",
+            "Warmup was incomplete, dropped arrivals or returned incorrect responses"
+          ],
+          "complete": true,
+          "requests": 299,
+          "offered_requests": 300,
+          "achieved_rps": 9.966666666666667,
+          "dropped_iterations": 0,
+          "error_rate": 0.9698996655518395,
+          "check_failure_rate": 0.9698996655518395,
+          "p50_ms": 5017.1502,
+          "p95_ms": 5121.964109999999,
+          "p99_ms": 5224.311187999999,
+          "warmup": {
+            "complete": true,
+            "passed": false,
+            "requests": 577,
+            "offered_requests": 577.5,
+            "dropped_iterations": 0,
+            "error_rate": 0.7019064124783362,
+            "check_failure_rate": 0.7019064124783363
+          },
+          "run_id": "q-platform-1",
+          "variant": "platform",
+          "sequence": 1,
+          "raw_result_local_path": "quarkus3/target/comparison-10-mixed/platform-1.json",
+          "passes_individual_run_checks": false
+        },
+        {
+          "schema_version": 1,
+          "passed": false,
+          "failures": [
+            "http_req_duration{scenario:measured}: p(95)<300",
+            "http_req_duration{scenario:measured}: p(99)<1000",
+            "checks{scenario:warmup}: rate==1",
+            "checks{scenario:measured}: rate>=0.999",
+            "http_req_failed{scenario:measured}: rate<0.01",
+            "http_req_failed{scenario:warmup}: rate==0",
+            "Warmup was incomplete, dropped arrivals or returned incorrect responses"
+          ],
+          "complete": true,
+          "requests": 299,
+          "offered_requests": 300,
+          "achieved_rps": 9.966666666666667,
+          "dropped_iterations": 0,
+          "error_rate": 0.7926421404682275,
+          "check_failure_rate": 0.7926421404682275,
+          "p50_ms": 5000.9841,
+          "p95_ms": 5033.56414,
+          "p99_ms": 5095.872514,
+          "warmup": {
+            "complete": true,
+            "passed": false,
+            "requests": 577,
+            "offered_requests": 577.5,
+            "dropped_iterations": 0,
+            "error_rate": 0.7001733102253033,
+            "check_failure_rate": 0.7001733102253033
+          },
+          "run_id": "q-virtual-2",
+          "variant": "virtual",
+          "sequence": 2,
+          "raw_result_local_path": "quarkus3/target/comparison-10-mixed/virtual-2.json",
+          "passes_individual_run_checks": false
+        }
+      ]
+    },
+    {
+      "id": "comparison-10-jdk25",
+      "java": "25.0.2+10-69",
+      "warmup": "60 seconds, same 70/20/5/5 read/write mix as measurement",
+      "configuration": {
+        "baseUrl": "http://127.0.0.1:18080",
+        "rate": 10,
+        "duration": 30,
+        "profile": "steady",
+        "burst": 2,
+        "stages": [
+          {
+            "duration": "30s",
+            "target": 10
+          }
+        ],
+        "offered": 300,
+        "maxCreates": 10000,
+        "maximumCreates": 54,
+        "timeout": 5,
+        "grace": 6,
+        "vus": 128,
+        "warmupRamp": 5,
+        "warmupHold": 55,
+        "warmupStartRate": 1,
+        "warmupOffered": 577.5,
+        "seed": 42,
+        "p95": 300,
+        "p99": 1000,
+        "errorRate": 0.01
+      },
+      "caveats": [
+        "Existing local Java25 patch release; no runtime download was performed."
+      ],
+      "runs": [
+        {
+          "schema_version": 1,
+          "passed": true,
+          "failures": [],
+          "complete": true,
+          "requests": 299,
+          "offered_requests": 300,
+          "achieved_rps": 9.966666666666667,
+          "dropped_iterations": 0,
+          "error_rate": 0,
+          "check_failure_rate": 0,
+          "p50_ms": 8.7962,
+          "p95_ms": 61.26853999999998,
+          "p99_ms": 232.12335999999934,
+          "warmup": {
+            "complete": true,
+            "passed": true,
+            "requests": 577,
+            "offered_requests": 577.5,
+            "dropped_iterations": 0,
+            "error_rate": 0,
+            "check_failure_rate": 0
+          },
+          "run_id": "q-platform-1",
+          "variant": "platform",
+          "sequence": 1,
+          "raw_result_local_path": "quarkus3/target/comparison-10-jdk25/platform-1.json",
+          "passes_individual_run_checks": true
+        },
+        {
+          "schema_version": 1,
+          "passed": false,
+          "failures": [
+            "checks{scenario:warmup}: rate==1",
+            "http_req_duration{scenario:measured}: p(95)<300",
+            "http_req_failed{scenario:warmup}: rate==0",
+            "Warmup was incomplete, dropped arrivals or returned incorrect responses"
+          ],
+          "complete": true,
+          "requests": 300,
+          "offered_requests": 300,
+          "achieved_rps": 10,
+          "dropped_iterations": 0,
+          "error_rate": 0,
+          "check_failure_rate": 0,
+          "p50_ms": 10.721900000000002,
+          "p95_ms": 373.91028000000006,
+          "p99_ms": 636.9337329999992,
+          "warmup": {
+            "complete": true,
+            "passed": false,
+            "requests": 577,
+            "offered_requests": 577.5,
+            "dropped_iterations": 0,
+            "error_rate": 0.17850953206239167,
+            "check_failure_rate": 0.17850953206239173
+          },
+          "run_id": "q-virtual-2",
+          "variant": "virtual",
+          "sequence": 2,
+          "raw_result_local_path": "quarkus3/target/comparison-10-jdk25/virtual-2.json",
+          "passes_individual_run_checks": false
+        }
+      ]
+    }
+  ]
+}

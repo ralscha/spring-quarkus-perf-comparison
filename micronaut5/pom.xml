@@ -9,13 +9,13 @@
   <description>Micronaut 5 example</description>
 
   <properties>
-    <assertj.version>4.0.0-M1</assertj.version>
+    <assertj.version>3.27.7</assertj.version>
     <caffeine.version>3.3.1</caffeine.version>
     <compiler-plugin.version>3.16.0</compiler-plugin.version>
     <!-- Enhancement metadata must match the Hibernate runtime managed by Micronaut Platform. -->
-    <hibernate.version>7.4.13.Final</hibernate.version>
-    <java.version>25</java.version>
-    <maven.compiler.release>25</maven.compiler.release>
+    <hibernate.version>7.4.10.Final</hibernate.version>
+    <java.version>27</java.version>
+    <maven.compiler.release>27</maven.compiler.release>
     <micronaut.platform.version>5.2.3</micronaut.platform.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
     <surefire-plugin.version>3.6.0</surefire-plugin.version>
@@ -183,7 +183,7 @@
             <path>
               <groupId>com.google.errorprone</groupId>
               <artifactId>error_prone_core</artifactId>
-              <version>2.49.0</version>
+              <version>2.51.0</version>
             </path>
           </annotationProcessorPaths>
 
@@ -228,6 +228,10 @@
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <mainClass>org.acme.Application</mainClass>
+                  <manifestEntries>
+                    <!-- Keep the Java 21+ implementations supplied by multi-release dependencies. -->
+                    <Multi-Release>true</Multi-Release>
+                  </manifestEntries>
                 </transformer>
               </transformers>
             </configuration>

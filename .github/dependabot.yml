@@ -1,185 +1,110 @@
 version: 2
 updates:
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-
-  - package-ecosystem: maven
-    directory: /quarkus3
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "io.quarkus.platform:*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: maven
-    directory: /quarkus3-spring-compatibility
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "io.quarkus.platform:*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: maven
-    directory: /quarkus3-virtual
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "io.quarkus.platform:*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: maven
-    directory: /micronaut4
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "io.micronaut.platform:*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: maven
-    directory: /micronaut5
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "io.micronaut.platform:*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: maven
-    directory: /springboot4
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "org.springframework.boot:spring-boot-starter-parent"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: gomod
-    directory: /go
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-
-  - package-ecosystem: gomod
-    directory: /run/pulumi
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-
-  # OOTB branch
-  - package-ecosystem: github-actions
-    directory: /
-    target-branch: ootb
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-
-  - package-ecosystem: maven
-    directory: /quarkus3
-    target-branch: ootb
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "io.quarkus.platform:*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: maven
-    directory: /quarkus3-spring-compatibility
-    target-branch: ootb
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "io.quarkus.platform:*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: maven
-    directory: /quarkus3-virtual
-    target-branch: ootb
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "io.quarkus.platform:*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: maven
-    directory: /micronaut4
-    target-branch: ootb
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "io.micronaut.platform:*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: maven
-    directory: /micronaut5
-    target-branch: ootb
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "io.micronaut.platform:*"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: maven
-    directory: /springboot4
-    target-branch: ootb
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-    ignore:
-      - dependency-name: "org.springframework.boot:spring-boot-starter-parent"
-        update-types:
-          - "version-update:semver-major"
-
-  - package-ecosystem: gomod
-    directory: /go
-    target-branch: ootb
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
-
-  - package-ecosystem: gomod
-    directory: /run/pulumi
-    target-branch: ootb
-    schedule:
-      interval: daily
-    labels:
-      - "version-upgrade"
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+- package-ecosystem: maven
+  directory: /quarkus3
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+  ignore:
+  - dependency-name: io.quarkus.platform:*
+    update-types:
+    - version-update:semver-major
+- package-ecosystem: maven
+  directory: /micronaut5
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+  ignore:
+  - dependency-name: io.micronaut.platform:*
+    update-types:
+    - version-update:semver-major
+- package-ecosystem: maven
+  directory: /springboot4
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+  ignore:
+  - dependency-name: org.springframework.boot:spring-boot-starter-parent
+    update-types:
+    - version-update:semver-major
+- package-ecosystem: gomod
+  directory: /go
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+- package-ecosystem: gomod
+  directory: /run/pulumi
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+- package-ecosystem: github-actions
+  directory: /
+  target-branch: ootb
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+- package-ecosystem: maven
+  directory: /quarkus3
+  target-branch: ootb
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+  ignore:
+  - dependency-name: io.quarkus.platform:*
+    update-types:
+    - version-update:semver-major
+- package-ecosystem: maven
+  directory: /micronaut5
+  target-branch: ootb
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+  ignore:
+  - dependency-name: io.micronaut.platform:*
+    update-types:
+    - version-update:semver-major
+- package-ecosystem: maven
+  directory: /springboot4
+  target-branch: ootb
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+  ignore:
+  - dependency-name: org.springframework.boot:spring-boot-starter-parent
+    update-types:
+    - version-update:semver-major
+- package-ecosystem: gomod
+  directory: /go
+  target-branch: ootb
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+- package-ecosystem: gomod
+  directory: /run/pulumi
+  target-branch: ootb
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade
+- package-ecosystem: cargo
+  directory: /rust
+  schedule:
+    interval: daily
+  labels:
+  - version-upgrade

@@ -21,6 +21,14 @@ class FruitRepositoryTests {
 	@Autowired
 	FruitRepository fruitRepository;
 
+  @Test
+  void pagesAreBoundedAndIncludeCompletePrices() {
+    var page = fruitRepository.listPage(2, 1);
+    assertThat(page).extracting(Fruit::getName).containsExactly("Pear", "Banana");
+    assertThat(page.getFirst().getStorePrices()).hasSize(5);
+    assertThat(fruitRepository.listPage(2, 10000)).isEmpty();
+  }
+
 	@Test
 	public void findByName() {
 		this.fruitRepository.save(new Fruit(null, "Grapefruit", "Summer fruit"));

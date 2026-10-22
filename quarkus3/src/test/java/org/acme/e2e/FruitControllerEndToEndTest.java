@@ -27,6 +27,15 @@ public class FruitControllerEndToEndTest {
 
   @Test
   @Order(DEFAULT_ORDER)
+  void duplicateFruitReturnsConflict() {
+    given().contentType(ContentType.JSON).body("""
+        {"name":"Apple"}
+        """)
+        .post("/fruits").then().statusCode(409);
+  }
+
+  @Test
+  @Order(DEFAULT_ORDER)
   public void getAll() {
     get("/fruits").then()
         .statusCode(Status.OK.getStatusCode())

@@ -1,40 +1,28 @@
 services:
   postgres:
     image: postgres:18.6
-    container_name: fruits-postgres
     environment:
       POSTGRES_DB: fruits
       POSTGRES_USER: fruits
       POSTGRES_PASSWORD: fruits
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - ./db.sql:/docker-entrypoint-initdb.d/001-db.sql:ro
+      - postgres-data:/var/lib/postgresql
     cpus: ${POSTGRES_CPU_LIMIT:-2.0}
-    cpuset: "${POSTGRES_CPUSET:-0-1}"
+    # Leave empty locally; the dedicated host runner sets nonoverlapping CPU sets.
+    cpuset: "${POSTGRES_CPUSET:-}"
     mem_limit: ${POSTGRES_MEMORY_LIMIT:-2g}
-    command:
-      - -c
-      - fsync=off
-      - -c
-      - synchronous_commit=off
-      - -c
-      - autovacuum=off
-      - -c
-      - full_page_writes=off
-      - -c
-      - wal_level=minimal
-      - -c
-      - archive_mode=off
-      - -c
-      - max_wal_senders=0
-      - -c
-      - max_wal_size=4GB
-      - -c
-      - track_counts=off
-      - -c
-      - checkpoint_timeout=1h
-      - -c
-      - work_mem=32MB
-      - -c
-      - maintenance_work_mem=256MB
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U fruits -d fruits"]
+      interval: 2s
+      timeout: 5s
+      retries: 90
+      start_period: 10s
+    # Keep crash durability, WAL, checkpoints and autovacuum enabled.
+    command: ["postgres", "-c", "shared_buffers=512MB", "-c", "max_connections=100", "-c", "fsync=on", "-c", "synchronous_commit=on", "-c", "full_page_writes=on", "-c", "autovacuum=on"]
+
+volumes:
+  postgres-data:

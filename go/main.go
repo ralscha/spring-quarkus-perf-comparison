@@ -18,6 +18,10 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	cpuprofile := flag.String("cpuprofile", "", "write a CPU profile to the specified file")
 	flag.Parse()
 
@@ -26,7 +30,7 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		logger.Error("failed to load config", "error", err)
-		os.Exit(1)
+		return 1
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -35,17 +39,18 @@ func main() {
 	repository, err := fruit.NewPostgresRepository(ctx, cfg.Database)
 	if err != nil {
 		logger.Error("failed to connect to database", "error", err)
-		os.Exit(1)
+		return 1
 	}
 	defer repository.Close()
 
 	handler := app.NewHandler(logger, repository)
 	server := &http.Server{
-		Addr:         cfg.Server.Address(),
-		Handler:      handler,
-		ReadTimeout:  cfg.Server.ReadTimeout(),
-		WriteTimeout: cfg.Server.WriteTimeout(),
-		IdleTimeout:  cfg.Server.IdleTimeout(),
+		Addr:              cfg.Server.Address(),
+		Handler:           handler,
+		ReadTimeout:       cfg.Server.ReadTimeout(),
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      cfg.Server.WriteTimeout(),
+		IdleTimeout:       cfg.Server.IdleTimeout(),
 	}
 
 	var profileFile *os.File
@@ -53,13 +58,13 @@ func main() {
 		profileFile, err = os.Create(*cpuprofile)
 		if err != nil {
 			logger.Error("failed to create CPU profile", "path", *cpuprofile, "error", err)
-			os.Exit(1)
+			return 1
 		}
 
 		if err := pprof.StartCPUProfile(profileFile); err != nil {
 			_ = profileFile.Close()
 			logger.Error("failed to start CPU profile", "path", *cpuprofile, "error", err)
-			os.Exit(1)
+			return 1
 		}
 
 		defer func() {
@@ -72,23 +77,30 @@ func main() {
 		logger.Info("CPU profiling enabled", "path", *cpuprofile)
 	}
 
+	serverErrors := make(chan error, 1)
 	go func() {
-		logger.Info("server started", "address", server.Addr)
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("server failed", "error", err)
-			stop()
-		}
+		logger.Info("starting server", "address", server.Addr)
+		serverErrors <- server.ListenAndServe()
 	}()
 
-	<-ctx.Done()
+	exitCode := 0
+	select {
+	case <-ctx.Done():
+	case err := <-serverErrors:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("server failed", "error", err)
+			exitCode = 1
+		}
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("server shutdown failed", "error", err)
-		os.Exit(1)
+		return 1
 	}
 
 	logger.Info("server stopped")
+	return exitCode
 }

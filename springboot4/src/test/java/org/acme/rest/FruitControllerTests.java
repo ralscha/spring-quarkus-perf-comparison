@@ -37,6 +37,31 @@ class FruitControllerTests {
   @MockitoBean
   FruitRepository fruitRepository;
 
+  @Test
+  void rejectsOversizedFields() throws Exception {
+    mockMvc.perform(post("/fruits").contentType(MediaType.APPLICATION_JSON)
+        .content("""
+        {"name":"%s"}
+        """.formatted("a".repeat(256))))
+        .andExpect(status().isBadRequest());
+    Mockito.verifyNoInteractions(fruitRepository);
+  }
+
+  @Test
+  void rejectsInvalidPagination() throws Exception {
+    for (String query : List.of("limit=0", "limit=101", "offset=-1", "limit=invalid")) {
+      mockMvc.perform(get("/fruits?" + query)).andExpect(status().isBadRequest());
+    }
+    Mockito.verifyNoInteractions(fruitRepository);
+  }
+
+  @Test
+  void passesPaginationToRepository() throws Exception {
+    Mockito.when(fruitRepository.listPage(2, 3)).thenReturn(List.of());
+    mockMvc.perform(get("/fruits?limit=2&offset=3")).andExpect(status().isOk());
+    Mockito.verify(fruitRepository).listPage(2, 3);
+  }
+
   private static Fruit createFruit() {
     var price = BigDecimal.valueOf(1.29);
     var store = new Store(1L, "Some Store", new Address("123 Some St", "Some City", "USA"), "USD");
@@ -52,7 +77,7 @@ class FruitControllerTests {
     var fruitStorePrice = fruit.getStorePrices().getFirst();
     var store = fruitStorePrice.getStore();
 
-    Mockito.when(this.fruitRepository.findAll())
+    Mockito.when(this.fruitRepository.listPage(50, 0))
         .thenReturn(List.of(fruit));
 
     this.mockMvc.perform(get("/fruits"))
@@ -69,7 +94,7 @@ class FruitControllerTests {
         .andExpect(jsonPath("[0].storePrices[0].store.address.country").value(store.getAddress().country()))
         .andExpect(jsonPath("[0].storePrices[0].store.currency").value(store.getCurrency()));
 
-    Mockito.verify(this.fruitRepository).findAll();
+    Mockito.verify(this.fruitRepository).listPage(50, 0);
     Mockito.verifyNoMoreInteractions(this.fruitRepository);
   }
 

@@ -3,6 +3,9 @@ package org.acme.rest;
 import java.util.List;
 
 import jakarta.validation.Valid;
+import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -26,9 +29,23 @@ public class FruitController {
 
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
-	public List<FruitDTO> getAll() {
-		return this.fruitService.getAllFruits();
+	public List<FruitDTO> getAll(
+      @QueryParam("limit") @DefaultValue("50") String limit,
+      @QueryParam("offset") @DefaultValue("0") String offset) {
+		return this.fruitService.getAllFruits(pageArgument(limit, 1, 100), pageArgument(offset, 0, Integer.MAX_VALUE));
 	}
+
+  private static int pageArgument(String value, int minimum, int maximum) {
+    try {
+      int parsed = Integer.parseInt(value);
+      if (parsed >= minimum && parsed <= maximum) {
+        return parsed;
+      }
+    } catch (NumberFormatException ignored) {
+      // JAX-RS maps failed built-in parameter conversion to 404; our API uses 400.
+    }
+    throw new BadRequestException("Invalid pagination");
+  }
 
 	@GET
 	@Path("/{name}")
@@ -43,6 +60,15 @@ public class FruitController {
 	@Produces(MediaType.APPLICATION_JSON)
 	@Consumes(MediaType.APPLICATION_JSON)
 	public FruitDTO addFruit(@Valid FruitDTO fruit) {
-		return this.fruitService.createFruit(fruit);
+    try {
+      return this.fruitService.createFruit(fruit);
+    } catch (RuntimeException exception) {
+      for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+        if (cause instanceof java.sql.SQLException sql && "23505".equals(sql.getSQLState())) {
+          throw new jakarta.ws.rs.WebApplicationException("Fruit already exists", exception, Status.CONFLICT);
+        }
+      }
+      throw exception;
+    }
 	}
 }

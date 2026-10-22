@@ -14,7 +14,7 @@ tasks:
   build:
     desc: Build the fruit service binary
     cmds:
-      - go build -o {{.serverBinary}} .
+      - go build -trimpath -pgo=off -o {{.serverBinary}} .
 
   run:
     desc: Start the fruit service
@@ -29,7 +29,7 @@ tasks:
   pgo-build:
     desc: Build an optimized binary using a named PGO profile
     cmds:
-      - go build -pgo={{.pgoProfile}} -o {{.optimizedBinary}} .
+      - go build -trimpath -pgo={{.pgoProfile}} -o {{.optimizedBinary}} .
 
   pgo-run:
     desc: Run the optimized fruit service binary
