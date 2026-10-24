@@ -43,6 +43,22 @@ Every measured run reports p50, p95 and p99 latency, per-operation latency, comp
 
 `cloud-init-benchmark-host.yaml` clones the repository and invokes `bootstrap-benchmark-host.sh`. Set `repo_ref` to the reviewed commit being measured before provisioning; the default is `main`. Cloud-init does not include uncommitted workstation changes. The bootstrap builds all five implementations plus Go PGO and Spring AOT-cache artifacts. Go training uses the same workload separately from measurements. Java builds, AOT-cache training and all JVM benchmarks use the latest Temurin 27 patch installed in `/opt/java/openjdk-27`; Go 1.27.3, Rust 1.99.1, k6 2.3.0 and PostgreSQL 18.6 are pinned. Downloaded Java, Go and k6 archives are checksum-verified, and runtime/build metadata is retained.
 
+To diagnose an incomplete bootstrap on the server:
+
+```sh
+sudo cloud-init status --long
+sudo tail -n 100 /var/log/bootstrap-benchmark-host.log
+sudo tail -n 100 /var/log/cloud-init-output.log
+```
+
+The bootstrap defaults an unset or empty `HOME` to `/root` for build tools. If an older checkout failed with `./mvnw: 145: HOME: parameter not set`, restart the repository's bootstrap with an explicit home directory:
+
+```sh
+sudo env HOME=/root bash /opt/benchmarks/spring-quarkus-perf-comparison/run/bootstrap-benchmark-host.sh
+```
+
+This repeats installation and builds using the existing checkout. The `/usr/local/bin/bootstrap-benchmark-host.sh` launcher clones the repository and cannot be rerun over an existing checkout. The `/usr/local/bin/run-benchmarks.sh` command is created only at the end of a successful bootstrap.
+
 The runner uses the absolute Java executable under `JAVA_HOME` for Micronaut, Quarkus, Spring Boot and Spring's AOT-cache variant. It rejects a missing executable or any Java major version other than 27 before starting the benchmark. Build and train the AOT cache with the same JDK installation used for measurement.
 
 On an idle Debian 13 x86_64 host with at least eight CPUs:

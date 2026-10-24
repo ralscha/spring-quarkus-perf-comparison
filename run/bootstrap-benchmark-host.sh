@@ -15,6 +15,8 @@ RUST_VERSION=1.99.1
 K6_VERSION=2.3.0
 [[ ${EUID} -eq 0 ]] || { echo 'Run as root on the dedicated benchmark host' >&2; exit 1; }
 [[ $(uname -m) == x86_64 ]] || { echo 'Bootstrap currently supports x86_64 hosts' >&2; exit 1; }
+# Cloud-init may omit HOME; Maven Wrapper and other build tools need it.
+export HOME="${HOME:-/root}"
 exec > >(tee -a /var/log/bootstrap-benchmark-host.log) 2>&1
 
 apt-get update
