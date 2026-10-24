@@ -113,15 +113,16 @@ PY
 "${COMPOSE[@]}" pull
 docker image inspect postgres:18.6 > "${RESULTS_DIR}/postgres-image.json"
 failed=0
-while IFS=$'\t' read -r round framework rate; do
+# Keep the schedule off stdin: Docker/k6 may read stdin and consume later runs.
+while IFS=$'\t' read -r -u 8 round framework rate; do
   label="${framework}-r${round}-rate${rate}"
   echo "[$(date -u --iso-8601=seconds)] ${label}"
   # The dedicated Compose project owns only disposable benchmark data.
   "${COMPOSE[@]}" down --volumes >/dev/null
   "${COMPOSE[@]}" up -d --wait --wait-timeout 180
-  seed_count=$("${COMPOSE[@]}" exec -T postgres psql -U fruits -d fruits -Atqc 'SELECT count(*) FROM fruits')
+  seed_count=$("${COMPOSE[@]}" exec -T --interactive=false postgres psql -U fruits -d fruits -Atqc 'SELECT count(*) FROM fruits')
   [[ ${seed_count} == 1000 ]] || { echo 'Incorrect database seed' >&2; exit 1; }
-  "${COMPOSE[@]}" exec -T postgres psql -U fruits -d fruits -c 'SELECT version(); SHOW fsync; SHOW synchronous_commit; SHOW full_page_writes; SHOW autovacuum;' > "${RESULTS_DIR}/logs/${label}-postgres.txt"
+  "${COMPOSE[@]}" exec -T --interactive=false postgres psql -U fruits -d fruits -c 'SELECT version(); SHOW fsync; SHOW synchronous_commit; SHOW full_page_writes; SHOW autovacuum;' > "${RESULTS_DIR}/logs/${label}-postgres.txt"
   workdir="${REPO_DIR}/${framework}"
   case ${framework} in
     go) command=(env GOMAXPROCS="${APP_CPU_COUNT}" GOMEMLIMIT=4GiB ./server) ;;
@@ -143,13 +144,13 @@ while IFS=$'\t' read -r round framework rate; do
     "${command[@]}"
   ready=0
   for ((attempt=0; attempt<180; attempt++)); do
-    if curl --max-time 2 -fsS 'http://127.0.0.1:8080/fruits/Apple' >/dev/null; then ready=1; break; fi
+    if curl --max-time 2 -fsS 'http://127.0.0.1:8080/fruits/Apple' > /dev/null 2> "${RESULTS_DIR}/logs/${label}-readiness.txt"; then ready=1; break; fi
     systemctl is-active --quiet "${active_unit}" || break
     sleep 1
   done
   startup_ms=$(( ($(date +%s%N) - start_ns) / 1000000 ))
   if [[ ${ready} == 0 ]]; then
-    echo "${label}: server failed to start" >&2
+    echo "${label}: server failed to start; see ${RESULTS_DIR}/logs/${label}-{server,readiness}.txt" >&2
     printf '{"framework":"%s","rate":%s,"round":%s,"passed":false,"complete":false,"failure":"startup"}\n' "${framework}" "${rate}" "${round}" > "${RESULTS_DIR}/runs/${label}.json"
     failed=1; stop_app; continue
   fi
@@ -173,7 +174,7 @@ while IFS=$'\t' read -r round framework rate; do
   systemctl is-active --quiet "${active_unit}" && app_active=1
   systemctl show "${active_unit}" --property=CPUUsageNSec --property=MemoryPeak --property=Result \
     --property=EffectiveCPUs --property=EffectiveMemoryMax --property=MemorySwapMax > "${RESULTS_DIR}/logs/${label}-app-final.txt" || true
-  "${COMPOSE[@]}" exec -T postgres psql -U fruits -d fruits -c 'SELECT count(*) FROM fruits; SELECT * FROM pg_stat_database WHERE datname = current_database();' >> "${RESULTS_DIR}/logs/${label}-postgres.txt"
+  "${COMPOSE[@]}" exec -T --interactive=false postgres psql -U fruits -d fruits -c 'SELECT count(*) FROM fruits; SELECT * FROM pg_stat_database WHERE datname = current_database();' >> "${RESULTS_DIR}/logs/${label}-postgres.txt"
   python3 - "${RESULTS_DIR}" "${label}" "${framework}" "${rate}" "${round}" "${exit_code}" "${startup_ms}" "${app_active}" <<'PY'
 import json, pathlib, sys
 directory, label, framework, rate, round_number, exit_code, startup, app_active = sys.argv[1:]
@@ -183,10 +184,15 @@ result = json.loads(path.read_text()) if path.exists() else {'passed': False, 'c
 result.update(framework=framework, rate=int(rate), round=int(round_number), k6_exit_code=int(exit_code), startup_ms=int(startup))
 result['passed'] = result['passed'] and int(exit_code) == 0 and app_active == '1'
 (directory / 'runs' / f'{label}.json').write_text(json.dumps(result, indent=2) + '\n')
+if result['passed']:
+    print(f'{label}: passed')
+else:
+    print(f'{label}: benchmark failed (k6 exit {exit_code}, app active {app_active}); '
+          f'see {directory}/logs/{label}-k6.txt and {directory}/logs/{label}-server.txt', file=sys.stderr)
 PY
   [[ ${exit_code} == 0 && ${app_active} == 1 ]] || failed=1
   stop_app
-done < "${RESULTS_DIR}/schedule.tsv"
+done 8< "${RESULTS_DIR}/schedule.tsv" < /dev/null
 
 python3 "${SCRIPT_DIR}/summarize.py" "${RESULTS_DIR}" "${BENCHMARK_ROUNDS}" || failed=1
 echo "Results: ${RESULTS_DIR}"
