@@ -1,0 +1,3 @@
+# Linux entrypoints must remain executable after a Windows checkout or scp.
+*.sh text eol=lf
+mvnw text eol=lf
