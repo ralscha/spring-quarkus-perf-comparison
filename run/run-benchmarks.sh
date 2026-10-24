@@ -14,6 +14,7 @@ export POSTGRES_CPU_LIMIT=${POSTGRES_CPU_LIMIT:-2}
 APP_CPUSET=${APP_CPUSET:-2-5}
 APP_CPU_COUNT=${APP_CPU_COUNT:-4}
 APP_MEMORY_LIMIT=${APP_MEMORY_LIMIT:-6G}
+APP_NOFILE_LIMIT=${APP_NOFILE_LIMIT:-65536}
 K6_CPUSET=${K6_CPUSET:-6-7}
 export K6_SEED=${K6_SEED:-${BENCHMARK_SEED}}
 export K6_PROFILE=${K6_PROFILE:-mixed}
@@ -37,6 +38,7 @@ flock -n 9 || { echo 'A benchmark is already running.' >&2; exit 1; }
 [[ ${BENCHMARK_ROUNDS} =~ ^[1-9][0-9]*$ && ${BENCHMARK_SEED} =~ ^[0-9]+$ ]] || { echo 'Invalid rounds or seed' >&2; exit 1; }
 [[ ${BENCHMARK_RATES} =~ ^[1-9][0-9]*(,[1-9][0-9]*)*$ ]] || { echo 'BENCHMARK_RATES must be comma-separated positive integers' >&2; exit 1; }
 [[ ${APP_CPU_COUNT} =~ ^[1-9][0-9]*$ ]] || { echo 'APP_CPU_COUNT must be positive' >&2; exit 1; }
+[[ ${APP_NOFILE_LIMIT} =~ ^[1-9][0-9]*$ ]] || { echo 'APP_NOFILE_LIMIT must be positive' >&2; exit 1; }
 [[ ${BENCHMARK_VARIANTS} == 0 || ${BENCHMARK_VARIANTS} == 1 ]] || { echo 'BENCHMARK_VARIANTS must be 0 or 1' >&2; exit 1; }
 
 # Reject overlapping/out-of-range CPU assignments before starting any workload.
@@ -101,7 +103,7 @@ PY
   docker version
   "${COMPOSE[@]}" config
   # An explicit allowlist avoids capturing unrelated credentials such as K6_CLOUD_TOKEN.
-  for setting in JAVA_HOME JAVA_BIN APP_CPUSET APP_CPU_COUNT APP_MEMORY_LIMIT K6_CPUSET POSTGRES_CPUSET POSTGRES_CPU_LIMIT POSTGRES_MEMORY_LIMIT \
+  for setting in JAVA_HOME JAVA_BIN APP_CPUSET APP_CPU_COUNT APP_MEMORY_LIMIT APP_NOFILE_LIMIT K6_CPUSET POSTGRES_CPUSET POSTGRES_CPU_LIMIT POSTGRES_MEMORY_LIMIT \
     BENCHMARK_ROUNDS BENCHMARK_RATES BENCHMARK_FRAMEWORKS BENCHMARK_VARIANTS BENCHMARK_SEED \
     K6_BASE_URL K6_PROFILE K6_DURATION_SECONDS K6_BURST_MULTIPLIER K6_PREALLOCATED_VUS \
     K6_WARMUP_RAMP_SECONDS K6_WARMUP_HOLD_SECONDS K6_TIMEOUT_SECONDS K6_GRACE_SECONDS \
@@ -138,6 +140,7 @@ while IFS=$'\t' read -r -u 8 round framework rate; do
   systemd-run --quiet --unit="${active_unit}" --service-type=exec --expand-environment=no --working-directory="${workdir}" \
     --property="AllowedCPUs=${APP_CPUSET}" --property="CPUQuota=$((APP_CPU_COUNT * 100))%" \
     --property="MemoryMax=${APP_MEMORY_LIMIT}" --property=MemorySwapMax=0 --property=TasksMax=8192 \
+    --property="LimitNOFILE=${APP_NOFILE_LIMIT}" \
     --property=CPUAccounting=yes --property=MemoryAccounting=yes --property=TimeoutStopSec=15 \
     --property="StandardOutput=append:${RESULTS_DIR}/logs/${label}-server.txt" \
     --property="StandardError=append:${RESULTS_DIR}/logs/${label}-server.txt" \
@@ -173,7 +176,8 @@ while IFS=$'\t' read -r -u 8 round framework rate; do
   app_active=0
   systemctl is-active --quiet "${active_unit}" && app_active=1
   systemctl show "${active_unit}" --property=CPUUsageNSec --property=MemoryPeak --property=Result \
-    --property=EffectiveCPUs --property=EffectiveMemoryMax --property=MemorySwapMax > "${RESULTS_DIR}/logs/${label}-app-final.txt" || true
+    --property=EffectiveCPUs --property=EffectiveMemoryMax --property=MemorySwapMax \
+    --property=LimitNOFILE --property=LimitNOFILESoft > "${RESULTS_DIR}/logs/${label}-app-final.txt" || true
   "${COMPOSE[@]}" exec -T --interactive=false postgres psql -U fruits -d fruits -c 'SELECT count(*) FROM fruits; SELECT * FROM pg_stat_database WHERE datname = current_database();' >> "${RESULTS_DIR}/logs/${label}-postgres.txt"
   python3 - "${RESULTS_DIR}" "${label}" "${framework}" "${rate}" "${round}" "${exit_code}" "${startup_ms}" "${app_active}" <<'PY'
 import json, pathlib, sys

@@ -52,6 +52,13 @@ Release builds use thin LTO and one code generation unit without machine-specifi
 CPU instructions, so benchmark binaries remain portable.
 Accepted TCP connections use `TCP_NODELAY` to avoid delaying small API responses.
 
+On Linux, each idle HTTP keep-alive connection also uses a file descriptor. The
+benchmark runner sets both soft and hard open-file limits to 65,536 for all
+implementations (`APP_NOFILE_LIMIT`). For a manual run, check `ulimit -Sn` and
+`ulimit -Hn`; if the hard limit permits it, run `ulimit -Sn 65536` in the same shell
+before starting the binary. A soft limit of 1,024 is too small for the benchmark's
+2,000 preallocated VUs plus database connections and runtime descriptors.
+
 Requests have a 64 KiB body limit and 5-second processing deadline. Admission is
 bounded (503 when full), pool acquisition/connect timeouts are 3 seconds, and
 PostgreSQL statement/lock timeouts are 5/3 seconds. Successful requests are not

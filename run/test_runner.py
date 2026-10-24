@@ -36,7 +36,7 @@ docker() {
     if [[ " $* " == *' -Atqc '* ]]; then echo 1000; fi
   fi
 }
-systemd-run() { :; }
+systemd-run() { printf '%s\n' "$@" > "${RESULTS_DIR}/logs/${label}-launch-args.txt"; }
 systemctl() {
   if [[ $1 == is-active && ${label} == go-r1-rate100 && ${TEST_FAILURE} == startup ]]; then return 1; fi
 }
@@ -66,11 +66,12 @@ PY
 
 @unittest.skipUnless(BASH, 'Bash is required for the runner regression tests')
 class RunnerTest(unittest.TestCase):
-    def run_schedule(self, failure=''):
+    def run_schedule(self, failure='', nofile_limit=None):
         source = (SCRIPT_DIR / 'run-benchmarks.sh').read_text(encoding='utf-8')
         # Exercise the real cleanup and execution loop, excluding privileged
         # provisioning checks and metadata collection before the schedule runs.
         cleanup = source[source.index('stop_app() {'):source.index('frameworks=${BENCHMARK_FRAMEWORKS}')]
+        nofile_config = next(line for line in source.splitlines() if line.startswith('APP_NOFILE_LIMIT=')) + '\n'
         loop = source[source.index('failed=0\n'):]
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -82,13 +83,19 @@ class RunnerTest(unittest.TestCase):
                        REPO_DIR=directory.as_posix(), RESULTS_DIR=directory.as_posix(),
                        BENCHMARK_ROUNDS='2', TEST_FAILURE=failure,
                        TEST_PYTHON=Path(sys.executable).as_posix())
-            process = subprocess.run([BASH, '-c', HOST_STUBS + cleanup + loop],
+            env.pop('APP_NOFILE_LIMIT', None)
+            if nofile_limit is not None:
+                env['APP_NOFILE_LIMIT'] = str(nofile_limit)
+            process = subprocess.run([BASH, '-c', HOST_STUBS + nofile_config + cleanup + loop],
                                      env=env, stdin=subprocess.DEVNULL, capture_output=True,
                                      text=True, timeout=30)
             records = {path.stem: json.loads(path.read_text()) for path in (directory / 'runs').glob('*.json')}
             self.assertEqual(set(records), {'go-r1-rate100', 'go-r1-rate500', 'go-r2-rate100', 'go-r2-rate500'},
                              process.stdout + process.stderr)
             self.assertEqual((directory / 'consumed-stdin.txt').read_text(), '')
+            for label in records:
+                arguments = (directory / 'logs' / f'{label}-launch-args.txt').read_text().splitlines()
+                self.assertIn(f'--property=LimitNOFILE={nofile_limit or 65536}', arguments)
             report = json.loads((directory / 'summary.json').read_text())
             return process, records, report
 
@@ -105,6 +112,11 @@ class RunnerTest(unittest.TestCase):
         self.assertTrue(records['go-r2-rate100']['passed'])
         self.assertIn('go-r1-rate100: server failed to start; see ', process.stderr)
         self.assertEqual(report['capacity'][0]['highest_tested_passing_rate'], 500)
+
+    def test_custom_open_file_limit_is_applied_to_every_launch(self):
+        process, records, _ = self.run_schedule(nofile_limit=131072)
+        self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+        self.assertTrue(all(record['passed'] for record in records.values()))
 
     def test_load_test_failure_is_reported_and_later_runs_continue(self):
         process, records, report = self.run_schedule('k6')

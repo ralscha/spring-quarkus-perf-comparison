@@ -78,6 +78,8 @@ PostgreSQL receives CPUs 0–1 and 2 GiB RAM, each application CPUs 2–5 and a 
 
 The runner returns nonzero if any run fails a threshold or cannot finish, while continuing other runs after application/load-test failures. Fatal provisioning/database errors stop execution. Results go to a fresh `run/results/<UTC timestamp>/` directory: individual JSON and logs, the exact schedule, host/runtime metadata, `summary.tsv`, and `summary.json`. Aggregation reports medians, sample standard deviations and p95 coefficient of variation. Capacity is the **highest tested passing baseline rate**, requiring every repetition to pass; it is not an inferred maximum throughput. Compare latency at the same offered rate. Increase rates deliberately to locate saturation and repeat high-variance cases.
 
+Every application receives the same explicit soft and hard open-file limit of 65,536 (`APP_NOFILE_LIMIT`). Persistent HTTP connections consume file descriptors even while idle, independently of the request concurrency limit. The default 1,000 requests/second profile preallocates 2,000 k6 VUs, so an inherited soft limit of 1,024 can prevent a service from accepting connections. The configured limit is recorded in `environment.txt`, and systemd's soft/hard limits are recorded in each `*-app-final.txt`. Override it for larger workloads with, for example, `sudo APP_NOFILE_LIMIT=131072 /usr/local/bin/run-benchmarks.sh`.
+
 ## Settings
 
 All settings are environment variables. With `sudo`, set them after `sudo` as in the examples.
@@ -109,6 +111,7 @@ All settings are environment variables. With `sudo`, set them after `sudo` as in
 | `RESULTS_DIR` | `run/results/<UTC timestamp>` | Must not contain an earlier schedule |
 | `APP_CPUSET`, `APP_CPU_COUNT` | `2-5`, `4` | Application CPU allocation |
 | `APP_MEMORY_LIMIT` | `6G` | Application cgroup memory ceiling |
+| `APP_NOFILE_LIMIT` | `65536` | Soft and hard open-file limits for every application |
 | `POSTGRES_CPUSET`, `POSTGRES_CPU_LIMIT` | `0-1`, `2` | Dedicated database CPU allocation |
 | `POSTGRES_MEMORY_LIMIT` | `2g` | Database memory ceiling |
 | `K6_CPUSET` | `6-7` | Load generator CPU allocation |
