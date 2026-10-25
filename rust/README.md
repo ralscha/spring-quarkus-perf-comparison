@@ -36,18 +36,21 @@ in the deployment configuration if this service is exposed beyond that network.
 
 - `GET /fruits?limit=50&offset=0`: a stable page ordered by fruit ID, with prices
   ordered by store ID. `limit` must be 1–100 and `offset` nonnegative; invalid
-  parameters return 400. Pagination is applied before joining prices.
+  parameters return 400. Pagination limits fruits before their prices are loaded.
 - `GET /fruits/{name}`: case-sensitive lookup, 404 with an empty body when absent.
 - `POST /fruits`: accepts a JSON name and optional description, returns 200 with
   the committed row, 400 for invalid input and 409 for an existing name. Names
   and descriptions are trimmed and limited to 255 Unicode characters. Client IDs
   and relationships are ignored, matching the other implementations.
 
-Absent descriptions and empty `storePrices` are omitted. Reads perform one joined
-query under PostgreSQL's statement snapshot and do not cache application data.
-Each write uses one atomic INSERT in PostgreSQL's implicit transaction and the shared
-`fruits_seq`, avoiding separate BEGIN/COMMIT round trips. The connection pool
-caches prepared statements; its default 20-connection cap matches the other services.
+Absent descriptions and empty `storePrices` are omitted. A list read loads the
+fruit page and then the prices of exactly those fruits; a detail read loads the
+fruit and its prices with one joined query. Store rows come from a 30-second
+in-process cache, and only the stores that are not cached yet are queried, which
+matches the Go service and the JVM second-level cache. Each write uses one atomic
+INSERT in PostgreSQL's implicit transaction and the shared `fruits_seq`, avoiding
+separate BEGIN/COMMIT round trips. The connection pool caches prepared statements;
+its default 20-connection cap matches the other services.
 Release builds use thin LTO and one code generation unit without machine-specific
 CPU instructions, so benchmark binaries remain portable.
 Accepted TCP connections use `TCP_NODELAY` to avoid delaying small API responses.

@@ -1,6 +1,11 @@
 pub mod config;
+mod store_cache;
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::{
     Json, Router,
@@ -10,27 +15,36 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use deadpool_postgres::Pool;
+use deadpool_postgres::{Object, Pool};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Semaphore;
-use tokio_postgres::{Row, error::SqlState};
+use tokio_postgres::error::SqlState;
 
-// Limit fruits before joining: applying LIMIT to the joined rows truncates prices.
-const LIST: &str = "
-    SELECT f.id, f.name, f.description, s.id, s.name, s.currency,
-           s.address, s.city, s.country, p.price::DOUBLE PRECISION
-    FROM (SELECT id, name, description FROM fruits ORDER BY id LIMIT $1 OFFSET $2) f
-    LEFT JOIN store_fruit_prices p ON p.fruit_id = f.id
-    LEFT JOIN stores s ON s.id = p.store_id
-    ORDER BY f.id, s.id";
-const FIND: &str = "
-    SELECT f.id, f.name, f.description, s.id, s.name, s.currency,
-           s.address, s.city, s.country, p.price::DOUBLE PRECISION
+use crate::store_cache::{STORE_CACHE_TTL, StoreCache};
+
+// Pagination selects the fruit page first so the page limit never truncates prices.
+const LIST_FRUITS: &str = "
+    SELECT id, name, description
+    FROM fruits
+    ORDER BY id
+    LIMIT $1 OFFSET $2";
+// Prices are loaded for the page instead of joining the whole price table, and
+// stores are resolved from the cache, so a page never re-reads store rows.
+const LIST_PRICES: &str = "
+    SELECT fruit_id, store_id, price::DOUBLE PRECISION
+    FROM store_fruit_prices
+    WHERE fruit_id = ANY($1)
+    ORDER BY fruit_id, store_id";
+const FIND_FRUIT: &str = "
+    SELECT f.id, f.name, f.description, p.store_id, p.price::DOUBLE PRECISION
     FROM fruits f
     LEFT JOIN store_fruit_prices p ON p.fruit_id = f.id
-    LEFT JOIN stores s ON s.id = p.store_id
     WHERE f.name = $1
-    ORDER BY f.id, s.id";
+    ORDER BY p.store_id";
+const FIND_STORES: &str = "
+    SELECT id, name, currency, address, city, country
+    FROM stores
+    WHERE id = ANY($1)";
 const INSERT: &str = "
     INSERT INTO fruits (id, name, description)
     VALUES (nextval('fruits_seq'), $1, $2) RETURNING id";
@@ -52,7 +66,7 @@ pub struct StorePrice {
     pub price: f64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Store {
     pub id: i64,
     pub name: String,
@@ -60,7 +74,7 @@ pub struct Store {
     pub address: Address,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Address {
     pub address: String,
     pub city: String,
@@ -116,6 +130,12 @@ struct Limits {
     timeout: Duration,
 }
 
+#[derive(Clone)]
+struct AppState {
+    pool: Pool,
+    stores: Arc<StoreCache>,
+}
+
 pub fn router(pool: Pool, max_in_flight: usize) -> Router {
     Router::new()
         .route("/fruits", get(list_fruits).post(create_fruit))
@@ -128,7 +148,10 @@ pub fn router(pool: Pool, max_in_flight: usize) -> Router {
             },
             bounded_request,
         ))
-        .with_state(pool)
+        .with_state(AppState {
+            pool,
+            stores: Arc::new(StoreCache::new(STORE_CACHE_TTL)),
+        })
 }
 
 async fn bounded_request(State(limits): State<Limits>, request: Request, next: Next) -> Response {
@@ -142,7 +165,7 @@ async fn bounded_request(State(limits): State<Limits>, request: Request, next: N
 }
 
 async fn list_fruits(
-    State(pool): State<Pool>,
+    State(state): State<AppState>,
     Query(page): Query<Pagination>,
 ) -> Result<Json<Vec<Fruit>>, ApiError> {
     if !(1..=100).contains(&page.limit) || page.offset < 0 {
@@ -150,29 +173,74 @@ async fn list_fruits(
             "limit must be 1 to 100 and offset must be nonnegative",
         ));
     }
-    let client = pool.get().await?;
-    let statement = client.prepare_cached(LIST).await?;
+    let client = state.pool.get().await?;
+    let statement = client.prepare_cached(LIST_FRUITS).await?;
     let rows = client
         .query(&statement, &[&page.limit, &page.offset])
         .await?;
-    Ok(Json(fruits_from_rows(rows)?))
+    let mut fruits = Vec::with_capacity(rows.len());
+    for row in rows {
+        fruits.push(Fruit {
+            id: row.try_get(0)?,
+            name: row.try_get(1)?,
+            description: row
+                .try_get::<_, Option<String>>(2)?
+                .filter(|value| !value.is_empty()),
+            store_prices: Vec::new(),
+        });
+    }
+    if fruits.is_empty() {
+        return Ok(Json(fruits));
+    }
+    let ids: Vec<i64> = fruits.iter().map(|fruit| fruit.id).collect();
+    let statement = client.prepare_cached(LIST_PRICES).await?;
+    let rows = client.query(&statement, &[&ids]).await?;
+    let mut price_rows = Vec::with_capacity(rows.len());
+    for row in rows {
+        price_rows.push((row.try_get(0)?, row.try_get(1)?, row.try_get(2)?));
+    }
+    let mut prices = load_store_prices(&client, &state.stores, price_rows).await?;
+    for fruit in &mut fruits {
+        if let Some(store_prices) = prices.remove(&fruit.id) {
+            fruit.store_prices = store_prices;
+        }
+    }
+    Ok(Json(fruits))
 }
 
 async fn find_fruit(
-    State(pool): State<Pool>,
+    State(state): State<AppState>,
     Path(name): Path<String>,
 ) -> Result<Json<Fruit>, ApiError> {
-    let client = pool.get().await?;
-    let statement = client.prepare_cached(FIND).await?;
+    let client = state.pool.get().await?;
+    let statement = client.prepare_cached(FIND_FRUIT).await?;
     let rows = client.query(&statement, &[&name]).await?;
-    fruits_from_rows(rows)?
-        .pop()
-        .map(Json)
-        .ok_or(ApiError(StatusCode::NOT_FOUND, ""))
+    let Some(first) = rows.first() else {
+        return Err(ApiError(StatusCode::NOT_FOUND, ""));
+    };
+    let id: i64 = first.try_get(0)?;
+    let mut fruit = Fruit {
+        id,
+        name: first.try_get(1)?,
+        description: first
+            .try_get::<_, Option<String>>(2)?
+            .filter(|value| !value.is_empty()),
+        store_prices: Vec::new(),
+    };
+    let mut price_rows = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let Some(store_id) = row.try_get::<_, Option<i64>>(3)? else {
+            continue;
+        };
+        price_rows.push((id, store_id, row.try_get(4)?));
+    }
+    let mut prices = load_store_prices(&client, &state.stores, price_rows).await?;
+    fruit.store_prices = prices.remove(&id).unwrap_or_default();
+    Ok(Json(fruit))
 }
 
 async fn create_fruit(
-    State(pool): State<Pool>,
+    State(state): State<AppState>,
     payload: Result<Json<CreateFruit>, JsonRejection>,
 ) -> Result<Json<Fruit>, ApiError> {
     let Json(payload) = payload.map_err(|error| {
@@ -184,7 +252,7 @@ async fn create_fruit(
         ApiError(status, "invalid JSON body")
     })?;
     let payload = payload.validate()?;
-    let client = pool.get().await?;
+    let client = state.pool.get().await?;
     let statement = client.prepare_cached(INSERT).await?;
     // One INSERT is atomic in PostgreSQL's implicit transaction. Explicit BEGIN
     // and COMMIT would add two network round trips without changing this operation.
@@ -200,41 +268,63 @@ async fn create_fruit(
     }))
 }
 
-fn fruits_from_rows(rows: Vec<Row>) -> Result<Vec<Fruit>, tokio_postgres::Error> {
-    let mut fruits: Vec<Fruit> = Vec::new();
-    for row in rows {
-        let id: i64 = row.try_get(0)?;
-        if fruits.last().is_none_or(|fruit| fruit.id != id) {
-            fruits.push(Fruit {
-                id,
-                name: row.try_get(1)?,
-                description: row
-                    .try_get::<_, Option<String>>(2)?
-                    .filter(|value| !value.is_empty()),
-                store_prices: Vec::new(),
-            });
+/// Resolves the store of every price row, querying only the stores the cache does not have.
+async fn load_store_prices(
+    client: &Object,
+    cache: &StoreCache,
+    rows: Vec<(i64, i64, f64)>,
+) -> Result<HashMap<i64, Vec<StorePrice>>, ApiError> {
+    let mut seen = HashSet::new();
+    let mut stores = HashMap::new();
+    let mut missing = Vec::new();
+    for (_, store_id, _) in &rows {
+        if !seen.insert(*store_id) {
+            continue;
         }
-        if let Some(store_id) = row.try_get::<_, Option<i64>>(3)? {
-            // A price row always belongs to the fruit just added or the previous row's fruit.
-            let fruit = fruits
-                .last_mut()
-                .expect("fruit was added before its prices");
-            fruit.store_prices.push(StorePrice {
-                store: Store {
-                    id: store_id,
-                    name: row.try_get(4)?,
-                    currency: row.try_get(5)?,
-                    address: Address {
-                        address: row.try_get(6)?,
-                        city: row.try_get(7)?,
-                        country: row.try_get(8)?,
-                    },
-                },
-                price: row.try_get(9)?,
-            });
+        match cache.get(*store_id) {
+            Some(store) => {
+                stores.insert(*store_id, store);
+            }
+            None => missing.push(*store_id),
         }
     }
-    Ok(fruits)
+
+    if !missing.is_empty() {
+        let statement = client.prepare_cached(FIND_STORES).await?;
+        let loaded = client.query(&statement, &[&missing]).await?;
+        let mut loaded_stores = HashMap::with_capacity(loaded.len());
+        for row in loaded {
+            let store = Store {
+                id: row.try_get(0)?,
+                name: row.try_get(1)?,
+                currency: row.try_get(2)?,
+                address: Address {
+                    address: row.try_get(3)?,
+                    city: row.try_get(4)?,
+                    country: row.try_get(5)?,
+                },
+            };
+            loaded_stores.insert(store.id, store);
+        }
+        for (id, store) in &loaded_stores {
+            stores.insert(*id, store.clone());
+        }
+        cache.put(loaded_stores);
+    }
+
+    let mut prices: HashMap<i64, Vec<StorePrice>> = HashMap::new();
+    for (fruit_id, store_id, price) in rows {
+        // The foreign key guarantees a store row for every price.
+        let store = stores.get(&store_id).ok_or(ApiError(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "store metadata is unavailable",
+        ))?;
+        prices.entry(fruit_id).or_default().push(StorePrice {
+            store: store.clone(),
+            price,
+        });
+    }
+    Ok(prices)
 }
 
 #[derive(Debug)]

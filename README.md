@@ -16,6 +16,49 @@ Quarkus is consolidated into `quarkus3` using platform-thread dispatch. It produ
 
 Release references: [Spring Boot](https://github.com/spring-projects/spring-boot/releases), [Quarkus](https://github.com/quarkusio/quarkus/releases), [Micronaut Platform](https://github.com/micronaut-projects/micronaut-platform/releases), [Go](https://go.dev/doc/devel/release), [Rust](https://blog.rust-lang.org/2026/10/15/Rust-1.99.1/).
 
+## Hetzner benchmark results (2026-10-25)
+
+All five implementations passed every tested rate: **45 successful runs**, covering three repetitions at baseline rates of 100, 500 and 1,000 requests/second. The report records zero HTTP errors, failed checks and dropped arrivals. Go had the lowest p95 latency at every tested rate; all implementations sustained the highest tested load within the configured SLOs.
+
+The measured checkout was `5c9c56cd870051403b58d85108a6c3b48a1d740a`. Sources: [JSON summary](report/summary.json), [TSV summary](report/summary.tsv), [host and settings](report/environment.txt), [execution schedule](report/schedule.tsv) and [PostgreSQL image metadata](report/postgres-image.json).
+
+### Environment and workload
+
+- **Host:** Hetzner `benchmark-hel1`, Debian 13, Linux 6.12.107, AMD EPYC-Milan under KVM, eight vCPUs (guest topology: four cores, two threads per core), approximately 30 GiB RAM visible to Linux, no swap.
+- **Resource allocation:** application on CPUs 2-5 with a four-CPU quota and 6 GiB memory limit; PostgreSQL on CPUs 0-1 with a two-CPU quota and 2 GiB limit; k6 on CPUs 6-7. Requests used localhost on the same host.
+- **Runtimes:** Temurin 27.0.1.0.2+1, Go 1.27.3, Rust 1.99.1, k6 2.3.0 and PostgreSQL 18.6. Only the five baseline implementations were measured (`BENCHMARK_VARIANTS=0`); Go PGO and Spring AOT-cache variants were excluded.
+- **Procedure:** shuffled framework/rate order with seed 42, a fresh database and application per run, 60 seconds of warmup, a ten-second drain, then 120 seconds of measured mixed traffic. The operation mix was 70% detail reads, 20% paginated lists, 5% expected misses and 5% creates, with a burst to twice the baseline rate and recovery.
+
+The burst makes the average offered rate 1.15 times the baseline: approximately 115, 575 and 1,150 requests/second across the three profiles. At the highest baseline, the burst peak was 2,000 requests/second. Achieved throughput below is completed measured requests divided by the full 120-second measurement window.
+
+### Latency across tested rates
+
+Each value is the **median of the three per-run p95 latencies**, in milliseconds, over the complete measured traffic mix.
+
+| Implementation | 100 req/s baseline | 500 req/s baseline | 1,000 req/s baseline |
+| --- | ---: | ---: | ---: |
+| Go | 1.39 | 1.12 | 1.65 |
+| Rust | 2.12 | 1.98 | 2.59 |
+| Spring Boot | 4.00 | 3.03 | 3.44 |
+| Micronaut | 3.87 | 3.03 | 3.47 |
+| Quarkus | 3.79 | 3.09 | 3.57 |
+
+### Highest tested baseline: 1,000 requests/second
+
+Throughput and latency columns are medians across three runs, rounded for display. The p95 coefficient of variation (CV) measures variation between runs: sample standard deviation divided by the mean p95, expressed as a percentage.
+
+| Implementation | Achieved req/s | p50 (ms) | p95 (ms) | p99 (ms) | p95 CV |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Go | 1,149.8 | 0.34 | 1.65 | 5.76 | 5.65% |
+| Rust | 1,149.8 | 0.41 | 2.59 | 8.02 | 2.11% |
+| Spring Boot | 1,149.8 | 0.54 | 3.44 | 8.70 | 1.30% |
+| Micronaut | 1,149.8 | 0.53 | 3.47 | 8.62 | 0.82% |
+| Quarkus | 1,149.8 | 0.51 | 3.57 | 9.07 | 1.30% |
+
+Throughput was effectively equal because every implementation kept up with the offered traffic. At this load, the three JVM implementations had similar p95 latency, from 3.44 to 3.57 ms; all five implementations had median per-run p99 below 10 ms. Go's p95 CV was the largest at 5.65%, while the other implementations ranged from 0.82% to 2.11%.
+
+The highest tested passing baseline was **1,000 requests/second for every implementation**. These runs did not establish maximum capacity; higher offered rates are needed to locate saturation. Results describe these complete implementations, including their SQL and cache strategies. The supplied report contains aggregates and environment metadata, without individual run logs or startup/CPU/memory measurements, so it does not support a resource-efficiency or startup-time comparison.
+
 ## Shared API and data
 
 ```text
