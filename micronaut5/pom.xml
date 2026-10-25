@@ -13,7 +13,7 @@
     <caffeine.version>3.3.1</caffeine.version>
     <compiler-plugin.version>3.16.0</compiler-plugin.version>
     <!-- Enhancement metadata must match the Hibernate runtime managed by Micronaut Platform. -->
-    <hibernate.version>7.4.13.Final</hibernate.version>
+    <hibernate.version>7.4.14.Final</hibernate.version>
     <java.version>27</java.version>
     <maven.compiler.release>27</maven.compiler.release>
     <micronaut.platform.version>5.2.3</micronaut.platform.version>
