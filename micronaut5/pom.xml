@@ -18,7 +18,7 @@
     <maven.compiler.release>27</maven.compiler.release>
     <micronaut.platform.version>5.2.3</micronaut.platform.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
-    <surefire-plugin.version>3.6.0</surefire-plugin.version>
+    <surefire-plugin.version>3.6.1</surefire-plugin.version>
   </properties>
 
   <dependencyManagement>
