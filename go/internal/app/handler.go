@@ -91,8 +91,7 @@ func (h *Handler) createFruit(writer http.ResponseWriter, request *http.Request)
 
 	var payload fruit.FruitDTO
 	if err := json.UnmarshalRead(request.Body, &payload); err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			writeJSON(writer, http.StatusRequestEntityTooLarge, errorResponse{Error: "body exceeds 64 KiB"})
 			return
 		}
