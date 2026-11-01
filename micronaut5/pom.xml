@@ -16,7 +16,7 @@
     <hibernate.version>7.4.14.Final</hibernate.version>
     <java.version>27</java.version>
     <maven.compiler.release>27</maven.compiler.release>
-    <micronaut.platform.version>5.2.3</micronaut.platform.version>
+    <micronaut.platform.version>5.2.4</micronaut.platform.version>
     <shade-plugin.version>3.6.2</shade-plugin.version>
     <surefire-plugin.version>3.6.1</surefire-plugin.version>
   </properties>
