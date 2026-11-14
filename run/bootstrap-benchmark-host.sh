@@ -10,7 +10,7 @@ export JAVA_HOME=/opt/java/openjdk-27
 export CARGO_HOME=/opt/rust/cargo
 export RUSTUP_HOME=/opt/rust/rustup
 export PATH="${JAVA_HOME}/bin:${CARGO_HOME}/bin:/usr/local/go/bin:${PATH}"
-GO_VERSION=1.27.3
+GO_VERSION=1.27.4
 RUST_VERSION=1.99.1
 K6_VERSION=2.3.0
 [[ ${EUID} -eq 0 ]] || { echo 'Run as root on the dedicated benchmark host' >&2; exit 1; }
