@@ -41,7 +41,7 @@ Every measured run reports p50, p95 and p99 latency, per-operation latency, comp
 
 ## Dedicated host
 
-`cloud-init-benchmark-host.yaml` clones the repository and invokes `bootstrap-benchmark-host.sh`. Set `repo_ref` to the reviewed commit being measured before provisioning; the default is `main`. Cloud-init does not include uncommitted workstation changes. The bootstrap builds all five implementations plus Go PGO and Spring AOT-cache artifacts. Go training uses the same workload separately from measurements. Java builds, AOT-cache training and all JVM benchmarks use the latest Temurin 27 patch installed in `/opt/java/openjdk-27`; Go 1.27.3, Rust 1.99.1, k6 2.3.0 and PostgreSQL 18.6 are pinned. Downloaded Java, Go and k6 archives are checksum-verified, and runtime/build metadata is retained.
+`cloud-init-benchmark-host.yaml` clones the repository and invokes `bootstrap-benchmark-host.sh`. Set `repo_ref` to the reviewed commit being measured before provisioning; the default is `main`. Cloud-init does not include uncommitted workstation changes. The bootstrap builds all five implementations plus Go PGO and Spring AOT-cache artifacts. Go training uses the same workload separately from measurements. Java builds, AOT-cache training and all JVM benchmarks use the latest Temurin 27 patch installed in `/opt/java/openjdk-27`; Go 1.27.4, Rust 1.99.1, k6 2.3.0 and PostgreSQL 18.6 are pinned. Downloaded Java, Go and k6 archives are checksum-verified, and runtime/build metadata is retained.
 
 To diagnose an incomplete bootstrap on the server:
 

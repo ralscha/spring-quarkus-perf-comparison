@@ -1,12 +1,12 @@
 # Go implementation
 
-This module provides a Go 1.27.3 implementation of the same fruit service exposed by the JVM implementations.
+This module provides a Go 1.27.4 implementation of the same fruit service exposed by the JVM implementations.
 
 Request and response bodies use `encoding/json/v2`. The stricter v2 decoder rejects duplicate object names, invalid UTF-8, and trailing JSON, while the optimized Go 1.27 implementation replaces the previous hand-written response encoder.
 
 ## Requirements
 
-- Go 1.27.3
+- Go 1.27.4
 - PostgreSQL on `localhost:5432` with database `fruits` and credentials `fruits` / `fruits`
 
 You can start PostgreSQL from the repository root with:
@@ -47,7 +47,7 @@ Configuration is loaded from `app.yml` with `koanf`. Environment variables prefi
 
 List requests default to 50 fruits in ID order, accept limits from 1 to 100 and nonnegative offsets, and load prices only for that page. The pgx pool retains prepared statements and caches store metadata for 30 seconds. Creating a fruit does not invalidate unrelated store metadata. Requests have a five-second database deadline and POST bodies are limited to 64 KiB.
 
-Go 1.27.3 and the direct module dependencies were checked against the upstream release registries on 2026-10-22 and are already current. The baseline binary explicitly disables PGO; the separate PGO build uses a profile trained with the same mixed workload as measurement, following [Go's PGO guidance](https://go.dev/doc/pgo).
+Go 1.27.4 and the direct module dependencies are pinned for the benchmark environment. The baseline binary explicitly disables PGO; the separate PGO build uses a profile trained with the same mixed workload as measurement, following [Go's PGO guidance](https://go.dev/doc/pgo).
 
 ## Tests
 
